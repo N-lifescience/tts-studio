@@ -12,6 +12,11 @@ export interface Take {
   distance: number | null
   ok: boolean | null
   diff: DiffOp[] | null
+  /** 발음 검사 결과 (받아쓰기 못 했으면 null) */
+  pron_ok?: boolean | null
+  /** 문장 끝이 자연스럽게 사그라들었는지 (옛 테이크엔 없음) */
+  tail_ok?: boolean
+  tail_ms?: number
 }
 
 export type LineStatus = 'idle' | 'queued' | 'generating' | 'checking' | 'done' | 'error'

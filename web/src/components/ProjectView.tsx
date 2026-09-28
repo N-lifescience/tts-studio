@@ -74,7 +74,7 @@ export function ProjectView(props: ProjectProps) {
         )}
         {bad > 0 && (
           <button className="pill bad" onClick={() => setTab('lines')}>
-            발음 확인 {bad}줄
+            확인 필요 {bad}줄
           </button>
         )}
       </header>

@@ -828,12 +828,6 @@ button.pill {
   font-size: 12px;
   color: var(--muted);
 }
-.sticky-save {
-  position: sticky;
-  bottom: 0;
-  background: var(--bg);
-  padding: 12px 0;
-}
 
 /* 내보내기 */
 

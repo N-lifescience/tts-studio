@@ -131,7 +131,7 @@ export function SettingsTab({ project, voices, setProject, onGoVoices, fail, not
         </div>
       </section>
 
-      <div className="toolbar sticky-save">
+      <div className="toolbar">
         <button className="btn primary" disabled={!dirty || saving} onClick={save}>
           {saving ? '저장 중…' : '저장'}
         </button>

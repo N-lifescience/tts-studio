@@ -27,6 +27,25 @@ def trim_silence(audio, sr=config.SR, thresh=0.01, pad_sec=0.04, tail_thresh=0.0
     return out
 
 
+ENDING_MIN_MS = 50  # 말소리가 -40dB 에서 -60dB 로 떨어지는 데 이보다 짧으면 "끝이 뚝 끊김" (자연스러운 끝은 대개 60ms 이상)
+
+
+def ending_decay_ms(audio, sr=config.SR):
+    """마지막 말소리(-40dB 넘는 10ms 구간)에서 -60dB 아래로 내려가기까지 걸린 시간(ms).
+    자연스러운 끝음은 60~200ms, 뚝 끊긴 끝은 10~20ms 다. 소리가 난 채로 파일이 끝나면 파일 끝까지의 시간."""
+    w = int(0.01 * sr)
+    if len(audio) < w:
+        return 0
+    n = len(audio) // w
+    frames = audio[: n * w].reshape(n, w)
+    db = 20 * np.log10(np.maximum(np.sqrt(np.mean(frames**2, axis=1)), 1e-9))
+    loud = np.where(db > -40)[0]
+    if len(loud) == 0:
+        return 999
+    quiet = np.where(db[loud[-1] :] < -60)[0]
+    return int(quiet[0] * 10) if len(quiet) else int((n - loud[-1]) * 10)
+
+
 def _ffmpeg(*args, capture=False):
     r = subprocess.run(["ffmpeg", "-hide_banner", "-nostdin", *map(str, args)], capture_output=True, text=True)
     if r.returncode != 0:

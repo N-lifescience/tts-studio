@@ -33,9 +33,14 @@ def env(tmp_path, monkeypatch):
 
     heard = {}  # 텍스트 → 받아쓰기 결과를 바꾸고 싶을 때
 
+    cut = set()  # 여기 넣은 글자는 끝을 뚝 끊어서 만든다
+
     def fake_generate(text, voice_wav, voice_text, temperature, seed):
         n = int(sr * (0.5 + 0.05 * len(text)))
-        return (0.2 * np.sin(np.linspace(0, 300 * 2 * np.pi * n / sr, n))).astype(np.float32)
+        a = (0.2 * np.sin(np.linspace(0, 300 * 2 * np.pi * n / sr, n))).astype(np.float32)
+        if text not in cut:
+            a[-int(0.15 * sr):] *= np.geomspace(1, 1e-4, int(0.15 * sr)).astype(np.float32)  # 사그라듦
+        return np.concatenate([a, np.zeros(sr // 5, dtype=np.float32)])
 
     last = {}
 
@@ -49,7 +54,7 @@ def env(tmp_path, monkeypatch):
 
     monkeypatch.setattr(engine, "generate", fake_generate_wrap)
     monkeypatch.setattr(engine, "transcribe", fake_transcribe)
-    return {"heard": heard, "tmp": tmp_path}
+    return {"heard": heard, "tmp": tmp_path, "cut": cut}
 
 
 # ── 순수 함수 ──
@@ -293,3 +298,40 @@ def test_api_generate_all_redo(client, monkeypatch):
     assert client.post(f"/api/projects/{p['id']}/generate").json()["added"] == 4
     assert client.post(f"/api/projects/{p['id']}/generate?redo=true").json()["added"] == 4
     assert calls == [(4, False), (4, True)]  # 다시 뽑기는 이미 있는 줄도 새 테이크로
+
+
+@pytest.mark.parametrize("text,sent", [
+    ("먼저 몸부터 보죠.", "먼저 몸부터 보죠..."),
+    ("몸을 빠르게 움직이는 뒤쪽 다리", "몸을 빠르게 움직이는 뒤쪽 다리..."),
+    ("어디까지 진화할 수 있을까요?", "어디까지 진화할 수 있을까요?.."),
+    ("그렇구나…", "그렇구나..."),
+])
+def test_tts_text_adds_tail(text, sent):
+    """문장 끝이 끊기지 않게 모델에만 말줄임표를 붙인다."""
+    assert engine.tts_text(text) == sent
+
+
+def test_ending_decay_detects_cut():
+    from server import audio
+
+    sr = config.SR
+    tone = (0.2 * np.sin(np.linspace(0, 300 * 2 * np.pi, sr))).astype(np.float32)
+    faded = tone.copy()
+    faded[-int(0.15 * sr):] *= np.geomspace(1, 1e-4, int(0.15 * sr)).astype(np.float32)
+    silence = np.zeros(sr // 2, dtype=np.float32)
+    assert audio.ending_decay_ms(np.concatenate([faded, silence])) >= audio.ENDING_MIN_MS
+    assert audio.ending_decay_ms(np.concatenate([tone, silence])) < audio.ENDING_MIN_MS  # 뚝 끊김
+    assert audio.ending_decay_ms(tone) < audio.ENDING_MIN_MS  # 소리 난 채로 파일이 끝남
+
+
+def test_cut_ending_is_regenerated_and_flagged(env):
+    d = store.create_project("ep01", SCRIPT)
+    l = d["lines"][1]
+    env["cut"].add(l["text"])
+    run_queue(d["id"], [l["id"]])
+    d = store.load(d["id"])
+    v = store.line_view(d, d["lines"][1])
+    assert len(v["takes"]) == config.MAX_AUTO_ATTEMPTS  # 끝이 끊기면 자동으로 다시
+    assert v["check"] == "bad"
+    t = v["takes"][-1]
+    assert t["tail_ok"] is False and t["pron_ok"] is True  # 발음은 맞고 끝만 끊김

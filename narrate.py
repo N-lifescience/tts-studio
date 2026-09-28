@@ -75,7 +75,7 @@ def main():
     for i, (pi, text) in enumerate(chunks, 1):
         # eos 값이 들어가 있어서, 문장 끝 잘림을 고치기 전에 만든 조각은 자동으로 다시 만든다
         key = hashlib.sha1(
-            f"{args.model}|{args.voice}|{args.temperature}|eos{engine.EOS_DELAY_FRAMES}|{text}".encode()
+            f"{args.model}|{args.voice}|{args.temperature}|{engine.TAIL_VERSION}|{text}".encode()
         ).hexdigest()[:10]
         if i in args.redo:
             takes[key] = takes.get(key, 0) + 1

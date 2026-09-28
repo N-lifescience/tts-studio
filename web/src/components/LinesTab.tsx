@@ -198,8 +198,16 @@ function LineRow({
 
       {line.check === 'bad' && chosen && !busy && (
         <div className="heard">
-          <span className="heard-label">이렇게 들렸어요</span>
-          <Diff diff={chosen.diff} heard={chosen.heard} />
+          {chosen.pron_ok === false && (
+            <>
+              <span className="heard-label">이렇게 들렸어요</span>
+              <Diff diff={chosen.diff} heard={chosen.heard} />
+            </>
+          )}
+          {chosen.tail_ok === false && (
+            <span className="heard-label">문장 끝이 뚝 끊겼어요 — 다시 뽑아 보세요</span>
+          )}
+          <span className="spacer" />
           <button className="btn sm" onClick={() => patch({ ignore_check: true })}>
             이대로 쓰기
           </button>
@@ -257,7 +265,7 @@ function LineRow({
               <button
                 key={t.id}
                 className={`take ${t.id === line.chosen ? 'on' : ''} ${t.ok === false ? 'bad' : t.ok ? 'ok' : ''} ${ps.key === `take:${t.id}` ? 'playing' : ''}`}
-                title={`${i + 1}번 테이크 · ${t.duration}초${t.heard ? ` · 들린 말: ${t.heard}` : ''}\n누르면 듣고 이걸로 씁니다`}
+                title={`${i + 1}번 테이크 · ${t.duration}초${t.heard ? ` · 들린 말: ${t.heard}` : ''}${t.tail_ok === false ? ' · 끝이 끊김' : ''}\n누르면 듣고 이걸로 씁니다`}
                 onClick={() => {
                   play(t.id)
                   if (t.id !== line.chosen) patch({ chosen: t.id })
@@ -288,8 +296,12 @@ function StatusChip({ line }: { line: Line }) {
     return <span className={`chip ${c}`}>{t}</span>
   }
   if (line.status === 'error') return <span className="chip bad">오류</span>
-  if (line.check === 'ok') return <span className="chip ok">{line.ignore_check ? '확인함' : '발음 OK'}</span>
-  if (line.check === 'bad') return <span className="chip bad">발음 확인</span>
+  if (line.check === 'ok') return <span className="chip ok">{line.ignore_check ? '확인함' : '검사 통과'}</span>
+  if (line.check === 'bad') {
+    const t = line.takes.find((x) => x.id === line.chosen)
+    const label = t?.pron_ok === false ? '발음 확인' : t?.tail_ok === false ? '끝 끊김' : '확인 필요'
+    return <span className="chip bad">{label}</span>
+  }
   if (line.check === 'pending') return <span className="chip">검사 안 됨</span>
   return <span className="chip muted">아직 없음</span>
 }

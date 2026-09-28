@@ -14,7 +14,7 @@ import shutil
 import threading
 from datetime import datetime
 
-from . import check, config
+from . import audio, check, config
 from .textsplit import join_script, split_script
 
 LOCK = threading.RLock()  # project.json 읽고 쓰기는 전부 이 잠금 안에서
@@ -192,10 +192,13 @@ def take_path(d, take):
 
 
 def _judge(take):
-    """판정은 저장된 거리로 매번 다시 한다 (기준을 바꿔도 옛 테이크가 같은 기준으로 보이게)."""
+    """판정은 저장된 값으로 매번 다시 한다 (기준을 바꿔도 옛 테이크가 같은 기준으로 보이게).
+    ok = 발음(pron_ok) 과 문장 끝(tail_ok) 둘 다 통과. 끝 검사가 없던 옛 테이크는 끝은 통과로 본다."""
+    tail_ok = take["tail_ms"] >= audio.ENDING_MIN_MS if take.get("tail_ms") is not None else True
     if take.get("distance") is None or take.get("heard") is None:
-        return take
-    return {**take, **check.score(take["text"], take["heard"])}
+        return {**take, "tail_ok": tail_ok, "pron_ok": None, "ok": take.get("ok") if tail_ok else False}
+    sc = check.score(take["text"], take["heard"])
+    return {**take, **sc, "tail_ok": tail_ok, "pron_ok": sc["ok"], "ok": sc["ok"] and tail_ok}
 
 
 def line_view(d, line):

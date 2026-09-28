@@ -123,17 +123,22 @@ def _run_line(pid, lid, manual):
         a = engine.generate(text, vwav, ref_text, temperature, secrets.randbits(31))
         tid = store.new_id("t")
         rel = f"takes/{lid}_{tid}.wav"
-        sf.write(store._dir(pid) / rel, audio.trim_silence(a), config.SR)
+        trimmed = audio.trim_silence(a)
+        sf.write(store._dir(pid) / rel, trimmed, config.SR)
+        tail_ms = audio.ending_decay_ms(a)
         take = {"id": tid, "file": rel, "text": text, "voice": voice, "created": store.now(),
-                "duration": round(len(a) / config.SR, 2), "attempt": attempt,
-                "heard": None, "distance": None, "ok": None, "diff": None}
+                "duration": round(len(trimmed) / config.SR, 2), "attempt": attempt,
+                "heard": None, "distance": None, "ok": None, "diff": None,
+                "tail_ms": tail_ms, "tail_ok": tail_ms >= audio.ENDING_MIN_MS}
 
         _set_status(pid, lid, "checking")
         try:
             heard = engine.transcribe(store._dir(pid) / rel)
             take.update(heard=heard, **check.score(text, heard))
-        except Exception as e:  # 검사 실패는 생성 실패가 아니다
+            take["ok"] = take["ok"] and take["tail_ok"]
+        except Exception as e:  # 받아쓰기 실패는 생성 실패가 아니다 (끝 끊김 검사는 그대로)
             take["heard"] = f"(검사 실패: {e})"
+            take["ok"] = None if take["tail_ok"] else False
 
         with store.LOCK:
             d = store.load(pid)
@@ -146,12 +151,13 @@ def _run_line(pid, lid, manual):
                 return
             l["takes"].append(take)
             new.append(take)
-            best = sorted(new, key=lambda t: (not t["ok"], t["distance"] if t["distance"] is not None else 99))[0]
+            best = sorted(new, key=lambda t: (not t["ok"], not t["tail_ok"],
+                                              t["distance"] if t["distance"] is not None else 99))[0]
             l["chosen"] = best["id"]
             store.prune_takes(d, l)
             store.save(d)
             publish({"type": "line", "project": pid, "line": store.line_view(d, l)})
-        if take["ok"] is not False:  # 통과 또는 검사 불가 → 더 안 뽑는다
+        if take["ok"] is not False:  # 통과 또는 검사 불가 → 더 안 뽑는다 (발음이 틀리거나 끝이 끊기면 다시)
             break
     _set_status(pid, lid, "done")
 
