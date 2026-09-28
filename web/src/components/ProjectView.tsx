@@ -13,7 +13,6 @@ export interface ProjectProps {
   exportState: ExportState
   setProject: (p: Project) => void
   onLine: (l: Line) => void
-  onDeleted: () => void
   onGoVoices: () => void
   notify: (msg: string, bad?: boolean) => void
   fail: (e: unknown) => void
@@ -41,11 +40,12 @@ export function ProjectView(props: ProjectProps) {
   const made = project.lines.filter((l) => l.chosen).length
   const bad = project.lines.filter((l) => l.check === 'bad').length
 
-  const tabs: [Tab, string][] = [
-    ['lines', `줄 ${project.lines.length}`],
-    ['script', '대본'],
-    ['settings', '설정·자막'],
-    ['export', '내보내기'],
+  // 작업 순서대로: 목소리·자막을 정하고 → 대본을 넣고 → 줄마다 듣고 다듬고 → 내보낸다
+  const tabs: [Tab, string, string][] = [
+    ['settings', '목소리·자막', ''],
+    ['script', '대본', ''],
+    ['lines', '음성 다듬기', project.lines.length ? `${made}/${project.lines.length}` : ''],
+    ['export', '내보내기', ''],
   ]
 
   return (
@@ -72,18 +72,19 @@ export function ProjectView(props: ProjectProps) {
             {project.title}
           </h1>
         )}
-        <div className="head-stats">
-          <span>
-            {made}/{project.lines.length}줄 완성
-          </span>
-          {bad > 0 && <span className="pill bad">발음 확인 {bad}</span>}
-        </div>
+        {bad > 0 && (
+          <button className="pill bad" onClick={() => setTab('lines')}>
+            발음 확인 {bad}줄
+          </button>
+        )}
       </header>
 
       <nav className="tabs" role="tablist">
-        {tabs.map(([k, label]) => (
+        {tabs.map(([k, label, badge], i) => (
           <button key={k} role="tab" aria-selected={tab === k} className={`tab ${tab === k ? 'on' : ''}`} onClick={() => setTab(k)}>
+            <span className="tab-no">{i + 1}</span>
             {label}
+            {badge && <span className="tab-badge">{badge}</span>}
           </button>
         ))}
       </nav>

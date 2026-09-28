@@ -5,7 +5,7 @@ import { Sidebar } from './components/Sidebar'
 import { VoicesView } from './components/VoicesView'
 import type { ExportState, Line, Project, ProjectSummary, QueueState, ServerEvent, Voice } from './types'
 
-type View = { kind: 'project'; id: string } | { kind: 'voices' } | { kind: 'empty' }
+type View = { kind: 'project'; id: string } | { kind: 'voices'; focus?: string } | { kind: 'empty' }
 
 const LAST = 'tts-studio:last'
 
@@ -127,12 +127,38 @@ export default function App() {
     }
   }
 
-  const onDeleted = async () => {
-    setProject(null)
-    const ps = await api.projects()
-    setProjects(ps)
-    if (ps[0]) openProject(ps[0].id)
-    else setView({ kind: 'empty' })
+  const deleteProject = async (p: ProjectSummary) => {
+    if (!window.confirm(`"${p.title}" 에피소드를 지울까요?\n만든 음성도 모두 지워집니다. (iCloud 로 내보낸 파일은 남습니다)`)) return
+    try {
+      await api.deleteProject(p.id)
+      const ps = await api.projects()
+      setProjects(ps)
+      notify(`에피소드 "${p.title}" 삭제됨`)
+      if (view.kind === 'project' && view.id === p.id) {
+        setProject(null)
+        if (ps[0]) openProject(ps[0].id)
+        else setView({ kind: 'empty' })
+      }
+    } catch (e) {
+      fail(e)
+    }
+  }
+
+  const deleteVoice = async (name: string) => {
+    if (!window.confirm(`"${name}" 목소리를 지울까요?`)) return
+    try {
+      await api.deleteVoice(name)
+      await loadVoices()
+      notify(`목소리 "${name}" 삭제됨`)
+      if (view.kind === 'voices' && view.focus === name) setView({ kind: 'voices' })
+    } catch (e) {
+      fail(e) // 쓰는 에피소드가 있으면 서버가 이유를 알려 준다
+    }
+  }
+
+  const openVoice = (name?: string) => {
+    setView({ kind: 'voices', focus: name })
+    loadVoices()
   }
 
   const busyProject = queue?.current?.[0]
@@ -148,10 +174,9 @@ export default function App() {
         online={online}
         onOpen={openProject}
         onCreate={createProject}
-        onVoices={() => {
-          setView({ kind: 'voices' })
-          loadVoices()
-        }}
+        onDeleteProject={deleteProject}
+        onOpenVoice={openVoice}
+        onDeleteVoice={deleteVoice}
       />
       <main className="main">
         {view.kind === 'project' && project && project.id === view.id && (
@@ -166,13 +191,21 @@ export default function App() {
               loadProjects()
             }}
             onLine={onLine}
-            onDeleted={onDeleted}
-            onGoVoices={() => setView({ kind: 'voices' })}
+            onGoVoices={() => openVoice()}
             notify={notify}
             fail={fail}
           />
         )}
-        {view.kind === 'voices' && <VoicesView voices={voices} reload={loadVoices} notify={notify} fail={fail} />}
+        {view.kind === 'voices' && (
+          <VoicesView
+            voices={voices}
+            focus={view.focus}
+            reload={loadVoices}
+            onDelete={deleteVoice}
+            notify={notify}
+            fail={fail}
+          />
+        )}
         {view.kind === 'empty' && (
           <div className="empty">
             <h1>TTS 작업실</h1>

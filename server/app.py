@@ -417,7 +417,7 @@ def delete_voice(name: str):
         raise store.NotFound(name)
     used = store.voice_usage(name)
     if used:
-        raise store.BadRequest(f"쓰는 에피소드가 있어 지울 수 없습니다: {', '.join(used)}")
+        raise store.BadRequest(f"이 목소리를 쓰는 에피소드가 있어 지울 수 없어요: {', '.join(used)} — 그 에피소드의 목소리를 먼저 바꾸세요")
     wav.unlink()
     txt.unlink(missing_ok=True)
     return {"ok": True}

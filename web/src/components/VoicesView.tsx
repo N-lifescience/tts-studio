@@ -1,11 +1,13 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { api, urls } from '../api'
 import { player, usePlayer, useRecorder } from '../player'
 import type { Voice } from '../types'
 
 interface Props {
   voices: Voice[]
+  focus?: string
   reload: () => Promise<unknown>
+  onDelete: (name: string) => void
   notify: (msg: string, bad?: boolean) => void
   fail: (e: unknown) => void
 }
@@ -16,7 +18,7 @@ const READ_ME: Record<string, string> = {
   긴장감: '바로 그 순간, 풀숲이 흔들립니다. 먹잇감은 아직 눈치채지 못했습니다. 거리는 단 세 걸음. 숨을 참고, 몸을 낮추고, 그리고 지금입니다!',
 }
 
-export function VoicesView({ voices, reload, notify, fail }: Props) {
+export function VoicesView({ voices, focus, reload, onDelete, notify, fail }: Props) {
   const [fresh, setFresh] = useState<string | null>(null) // 방금 등록해서 받아쓰기 확인이 필요한 목소리
 
   return (
@@ -41,7 +43,16 @@ export function VoicesView({ voices, reload, notify, fail }: Props) {
 
       <div className="voice-list">
         {voices.map((v) => (
-          <VoiceCard key={v.name + v.updated} voice={v} fresh={fresh === v.name} reload={reload} notify={notify} fail={fail} />
+          <VoiceCard
+            key={v.name + v.updated}
+            voice={v}
+            fresh={fresh === v.name}
+            focused={focus === v.name}
+            reload={reload}
+            onDelete={onDelete}
+            notify={notify}
+            fail={fail}
+          />
         ))}
         {voices.length === 0 && <p className="muted">아직 목소리가 없습니다. 위에서 녹음하거나 파일을 올리세요.</p>}
       </div>
@@ -49,8 +60,20 @@ export function VoicesView({ voices, reload, notify, fail }: Props) {
   )
 }
 
-function VoiceCard({ voice, fresh, reload, notify, fail }: { voice: Voice; fresh: boolean } & Omit<Props, 'voices'>) {
+function VoiceCard({
+  voice,
+  fresh,
+  focused,
+  reload,
+  onDelete,
+  notify,
+  fail,
+}: { voice: Voice; fresh: boolean; focused: boolean } & Omit<Props, 'voices' | 'focus'>) {
   const [text, setText] = useState(voice.text)
+  const ref = useRef<HTMLElement>(null)
+  useEffect(() => {
+    if (focused) ref.current?.scrollIntoView({ block: 'center', behavior: 'smooth' })
+  }, [focused])
   const ps = usePlayer()
   const key = `voice:${voice.name}`
   const dirty = text.trim() !== voice.text.trim()
@@ -65,18 +88,8 @@ function VoiceCard({ voice, fresh, reload, notify, fail }: { voice: Voice; fresh
     }
   }
 
-  const del = async () => {
-    if (!window.confirm(`목소리 "${voice.name}" 를 지울까요?`)) return
-    try {
-      await api.deleteVoice(voice.name)
-      await reload()
-    } catch (e) {
-      fail(e)
-    }
-  }
-
   return (
-    <section className={`card voice ${fresh ? 'fresh' : ''}`}>
+    <section ref={ref} className={`card voice ${fresh ? 'fresh' : ''} ${focused ? 'focused' : ''}`}>
       <div className="row">
         <button className="play" onClick={() => player.play(key, urls.voice(voice.name, voice.updated))} aria-label={`${voice.name} 듣기`}>
           {ps.key === key ? '■' : '▶'}
@@ -84,7 +97,7 @@ function VoiceCard({ voice, fresh, reload, notify, fail }: { voice: Voice; fresh
         <h2>{voice.name}</h2>
         <span className="muted small">{voice.duration.toFixed(1)}초</span>
         <span className="spacer" />
-        <button className="btn ghost sm danger" onClick={del}>
+        <button className="btn ghost sm danger" onClick={() => onDelete(voice.name)}>
           삭제
         </button>
       </div>

@@ -41,7 +41,7 @@ export function ExportTab({ project, exportState, fail, goLines }: ProjectProps 
           <p className="warn-text">
             아직 안 만든 줄이 {missing}개 있습니다.{' '}
             <button className="link" onClick={goLines}>
-              줄 목록으로
+              음성 다듬기로
             </button>
           </p>
         ) : bad > 0 ? (

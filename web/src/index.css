@@ -145,11 +145,43 @@ code {
   padding: 0 8px;
 }
 
+.side-section {
+  display: grid;
+  gap: 2px;
+}
 .side-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  border: 0;
+  background: none;
+  padding: 4px 8px 6px;
   font-size: 12px;
-  font-weight: 600;
+  font-weight: 650;
   color: var(--muted);
-  padding: 0 8px 6px;
+  cursor: pointer;
+  text-align: left;
+  border-radius: 6px;
+}
+.side-head:hover {
+  color: var(--text);
+}
+.chev {
+  flex: none;
+  transition: transform 0.15s;
+}
+.side-section.open .chev {
+  transform: rotate(90deg);
+}
+.side-count {
+  margin-left: auto;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+}
+.side-body {
+  display: grid;
+  gap: 4px;
 }
 
 .side-list {
@@ -158,8 +190,22 @@ code {
   padding: 0;
 }
 
+.side-row {
+  position: relative;
+  display: flex;
+  align-items: center;
+  border-radius: 8px;
+}
+.side-row:hover,
+.side-row:focus-within {
+  background: var(--surface-2);
+}
+.side-row.active {
+  background: var(--accent-soft);
+}
 .side-item {
-  width: 100%;
+  flex: 1;
+  min-width: 0;
   display: flex;
   align-items: center;
   gap: 8px;
@@ -170,11 +216,7 @@ code {
   cursor: pointer;
   text-align: left;
 }
-.side-item:hover {
-  background: var(--surface-2);
-}
-.side-item.active {
-  background: var(--accent-soft);
+.side-row.active .side-item {
   color: var(--accent);
   font-weight: 600;
 }
@@ -191,10 +233,39 @@ code {
   align-items: center;
   gap: 6px;
 }
+/* 삭제 버튼: 마우스를 올리거나 키보드로 들어오면 보인다 */
+.side-del {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  margin-right: 4px;
+  border: 0;
+  border-radius: 6px;
+  background: none;
+  color: var(--muted);
+  cursor: pointer;
+  opacity: 0;
+}
+.side-row:hover .side-del,
+.side-row:focus-within .side-del {
+  opacity: 1;
+}
+.side-del:hover,
+.side-del:focus-visible {
+  color: var(--bad);
+  background: var(--bad-soft);
+}
+@media (hover: none) {
+  .side-del {
+    opacity: 1;
+  }
+}
 
 .side-add {
   width: 100%;
-  margin-top: 4px;
+  margin-top: 2px;
   padding: 8px 10px;
   border: 1px dashed var(--line);
   border-radius: 8px;
@@ -203,7 +274,8 @@ code {
   cursor: pointer;
   text-align: left;
 }
-.side-add:hover {
+.side-add:hover,
+.side-add.on {
   color: var(--accent);
   border-color: var(--accent);
 }
@@ -482,6 +554,38 @@ input[type='range'] {
 .tab.on {
   color: var(--accent);
   border-bottom-color: var(--accent);
+}
+.tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+}
+.tab-no {
+  display: inline-grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  font-size: 11.5px;
+  font-weight: 700;
+  background: var(--surface-2);
+  color: var(--muted);
+}
+.tab.on .tab-no {
+  background: var(--accent);
+  color: var(--accent-text);
+}
+.tab-badge {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+button.pill {
+  border: 0;
+  cursor: pointer;
+  font: inherit;
+  font-size: 12.5px;
 }
 
 .tab-body > div {
@@ -780,6 +884,10 @@ input[type='range'] {
 }
 .voice.fresh {
   border-color: var(--warn);
+}
+.voice.focused {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
 }
 .voice-text {
   width: 100%;

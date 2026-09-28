@@ -3,7 +3,7 @@ import { api, urls } from '../api'
 import type { Settings, SubtitleSettings } from '../types'
 import type { ProjectProps } from './ProjectView'
 
-export function SettingsTab({ project, voices, setProject, onDeleted, onGoVoices, fail, notify }: ProjectProps) {
+export function SettingsTab({ project, voices, setProject, onGoVoices, fail, notify }: ProjectProps) {
   const [s, setS] = useState<Settings>(project.settings)
   const [saving, setSaving] = useState(false)
   const [previewKey, setPreviewKey] = useState(project.updated)
@@ -29,22 +29,12 @@ export function SettingsTab({ project, voices, setProject, onDeleted, onGoVoices
     }
   }
 
-  const del = async () => {
-    if (!window.confirm(`"${project.title}" 에피소드를 지울까요? 만든 음성도 모두 지워집니다. (iCloud 로 내보낸 파일은 남습니다)`)) return
-    try {
-      await api.deleteProject(project.id)
-      onDeleted()
-    } catch (e) {
-      fail(e)
-    }
-  }
-
   const voiceChanged = s.voice !== project.settings.voice
 
   return (
     <div className="settings-tab">
       <section className="card">
-        <h2>목소리·생성</h2>
+        <h2>목소리</h2>
         <div className="grid">
           <label>
             기본 목소리
@@ -150,10 +140,6 @@ export function SettingsTab({ project, voices, setProject, onDeleted, onGoVoices
             되돌리기
           </button>
         )}
-        <span className="spacer" />
-        <button className="btn danger ghost" onClick={del}>
-          에피소드 삭제
-        </button>
       </div>
     </div>
   )
