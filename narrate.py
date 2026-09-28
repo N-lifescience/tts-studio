@@ -24,15 +24,6 @@ DEFAULT_MODEL = "mlx-community/Qwen3-TTS-12Hz-1.7B-Base-bf16"
 SR = 24000
 
 
-def trim_silence(audio, thresh=0.01, pad=int(0.04 * SR)):
-    import numpy as np
-
-    idx = np.where(np.abs(audio) > thresh)[0]
-    if len(idx) == 0:
-        return audio
-    return audio[max(0, idx[0] - pad) : min(len(audio), idx[-1] + pad)]
-
-
 def srt_time(sec):
     ms = int(round(sec * 1000))
     h, ms = divmod(ms, 3600000)
@@ -72,14 +63,20 @@ def main():
     takes_file = out_dir / "takes.json"
     takes = json.loads(takes_file.read_text()) if takes_file.exists() else {}
 
-    import mlx.core as mx
+    os.environ["STUDIO_TTS_MODEL"] = args.model
     import numpy as np
     import soundfile as sf
+
+    from server import engine  # 웹 작업실과 같은 엔진 (문장 끝 잘림 보정 포함)
+    from server.audio import trim_silence
 
     model = None
     pieces = []
     for i, (pi, text) in enumerate(chunks, 1):
-        key = hashlib.sha1(f"{args.model}|{args.voice}|{args.temperature}|{text}".encode()).hexdigest()[:10]
+        # eos 값이 들어가 있어서, 문장 끝 잘림을 고치기 전에 만든 조각은 자동으로 다시 만든다
+        key = hashlib.sha1(
+            f"{args.model}|{args.voice}|{args.temperature}|eos{engine.EOS_DELAY_FRAMES}|{text}".encode()
+        ).hexdigest()[:10]
         if i in args.redo:
             takes[key] = takes.get(key, 0) + 1
         take = takes.get(key, 0)
@@ -87,22 +84,11 @@ def main():
 
         if not path.exists():
             if model is None:
-                from mlx_audio.tts.utils import load_model
-
                 print(f"모델 불러오는 중: {args.model}")
-                model = load_model(args.model)
+                model = engine.tts()
             print(f"[{i}/{len(chunks)}] {text}")
-            mx.random.seed(int(key, 16) % (2**31) + take)
-            results = model.generate(
-                text=text,
-                ref_audio=str(voice_wav),
-                ref_text=ref_text,
-                lang_code="korean",
-                temperature=args.temperature,
-            )
-            audio = np.concatenate([np.array(r.audio, dtype=np.float32) for r in results])
+            audio = engine.generate(text, voice_wav, ref_text, args.temperature, int(key, 16) % (2**31) + take)
             sf.write(path, trim_silence(audio), SR)
-            mx.clear_cache()
         else:
             print(f"[{i}/{len(chunks)}] (재사용) {text[:40]}")
 

@@ -270,3 +270,17 @@ def test_subtitle_balanced_wrap_evens_lines():
     assert len(lines) == len(subtitles.wrap(text, font, 1920 * 0.86)) == 2
     widths = [font.getlength(l) for l in lines]
     assert min(widths) / max(widths) > 0.7
+
+
+def test_trim_keeps_fading_tail():
+    """끝음이 사그라드는 꼬리(-54dB 위)는 남기고, 그 뒤 무음만 자른다."""
+    from server import audio
+
+    sr = config.SR
+    speech = 0.3 * np.ones(sr // 2, dtype=np.float32)
+    fade = np.linspace(0.3, 0.003, int(0.2 * sr), dtype=np.float32)  # 0.2초 동안 사그라듦
+    silence = np.zeros(sr, dtype=np.float32)
+    out = audio.trim_silence(np.concatenate([silence, speech, fade, silence]))
+    assert len(out) >= len(speech) + len(fade)  # 꼬리가 잘리지 않음
+    assert len(out) < len(speech) + len(fade) + int(0.25 * sr)  # 뒤 무음은 잘림
+    assert abs(out[-1]) < 1e-6  # 끝은 페이드아웃

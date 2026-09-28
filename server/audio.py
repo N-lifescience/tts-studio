@@ -10,12 +10,21 @@ import soundfile as sf
 from . import config
 
 
-def trim_silence(audio, sr=config.SR, thresh=0.01, pad_sec=0.04):
+def trim_silence(audio, sr=config.SR, thresh=0.01, pad_sec=0.04, tail_thresh=0.002, tail_pad_sec=0.12):
+    """앞뒤 무음 자르기. 끝은 음절이 사그라드는 꼬리를 살리려고 훨씬 낮은 기준(-54dB)과 넉넉한 여유로
+    자르고, 끝에 짧은 페이드아웃을 건다 (뚝 끊기는 소리 방지)."""
     idx = np.where(np.abs(audio) > thresh)[0]
     if len(idx) == 0:
         return audio
-    pad = int(pad_sec * sr)
-    return audio[max(0, idx[0] - pad) : min(len(audio), idx[-1] + pad)]
+    start = max(0, idx[0] - int(pad_sec * sr))
+    tail = np.where(np.abs(audio[idx[-1]:]) > tail_thresh)[0]
+    last = idx[-1] + (tail[-1] if len(tail) else 0)
+    end = min(len(audio), last + int(tail_pad_sec * sr))
+    out = audio[start:end].copy()
+    fade = min(len(out), int(0.03 * sr))
+    if fade:
+        out[-fade:] *= np.linspace(1.0, 0.0, fade, dtype=out.dtype)
+    return out
 
 
 def _ffmpeg(*args, capture=False):
