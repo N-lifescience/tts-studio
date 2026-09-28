@@ -45,7 +45,8 @@ export const api = {
   patchLine: (id: string, lid: string, body: LinePatch) => req<Line>('PATCH', `${P(id)}/lines/${lid}`, body),
   generateLine: (id: string, lid: string, manual = true) =>
     req<QueueState>('POST', `${P(id)}/lines/${lid}/generate?manual=${manual}`),
-  generateAll: (id: string) => req<QueueState & { added: number }>('POST', `${P(id)}/generate`),
+  generateAll: (id: string, redo = false) =>
+    req<QueueState & { added: number }>('POST', `${P(id)}/generate${redo ? '?redo=true' : ''}`),
   cancel: (id: string) => req<{ cancelled: number }>('POST', `${P(id)}/cancel`),
   preview: (id: string) =>
     req<{ duration: number; missing: number[]; cues: [number, number, string][]; url: string }>('POST', `${P(id)}/preview`),

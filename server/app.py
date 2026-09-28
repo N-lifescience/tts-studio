@@ -264,11 +264,12 @@ def generate_line(pid: str, lid: str, manual: bool = True):
 
 
 @app.post("/api/projects/{pid}/generate")
-def generate_all(pid: str):
+def generate_all(pid: str, redo: bool = False):
+    """redo=False: 아직 없는 줄만. True: 모든 줄을 새 테이크로 (예전 테이크는 골라 쓸 수 있게 남는다)."""
     d = store.load(pid)
-    todo = [l["id"] for l in d["lines"] if store.chosen_take(d, l) is None]
-    worker.enqueue(pid, todo)
-    return {**worker.queue_state(), "added": len(todo)}
+    todo = [l["id"] for l in d["lines"] if redo or store.chosen_take(d, l) is None]
+    added = worker.enqueue(pid, todo, manual=redo)
+    return {**worker.queue_state(), "added": added}
 
 
 @app.post("/api/projects/{pid}/cancel")

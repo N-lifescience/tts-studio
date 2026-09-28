@@ -65,6 +65,22 @@ export function LinesTab(props: Props) {
         >
           {missing ? `전체 생성 (${missing}줄)` : '모두 생성됨'}
         </button>
+        {missing < project.lines.length && (
+          <button
+            className="btn"
+            disabled={busy > 0}
+            title="모든 줄을 새로 뽑습니다. 예전 테이크는 테이크 번호로 남아 있어 다시 고를 수 있어요."
+            onClick={() => {
+              if (!window.confirm(`${project.lines.length}줄을 모두 새로 뽑을까요?\n예전 테이크는 지워지지 않고 테이크 번호로 남습니다.`)) return
+              api
+                .generateAll(project.id, true)
+                .then((r) => notify(`${r.added}줄 다시 뽑기 시작`))
+                .catch(fail)
+            }}
+          >
+            ↻ 전체 다시 뽑기
+          </button>
+        )}
         {busy > 0 && (
           <button className="btn" onClick={() => api.cancel(project.id).then((r) => notify(`${r.cancelled}줄 대기 취소`)).catch(fail)}>
             대기 중지

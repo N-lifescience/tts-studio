@@ -284,3 +284,12 @@ def test_trim_keeps_fading_tail():
     assert len(out) >= len(speech) + len(fade)  # 꼬리가 잘리지 않음
     assert len(out) < len(speech) + len(fade) + int(0.25 * sr)  # 뒤 무음은 잘림
     assert abs(out[-1]) < 1e-6  # 끝은 페이드아웃
+
+
+def test_api_generate_all_redo(client, monkeypatch):
+    calls = []
+    monkeypatch.setattr(worker, "enqueue", lambda pid, lids, manual=False: calls.append((len(lids), manual)) or len(lids))
+    p = client.post("/api/projects", json={"title": "ep", "script": SCRIPT}).json()
+    assert client.post(f"/api/projects/{p['id']}/generate").json()["added"] == 4
+    assert client.post(f"/api/projects/{p['id']}/generate?redo=true").json()["added"] == 4
+    assert calls == [(4, False), (4, True)]  # 다시 뽑기는 이미 있는 줄도 새 테이크로
