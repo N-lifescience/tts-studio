@@ -1,0 +1,18 @@
+#!/bin/zsh
+# 새 목소리 샘플 등록: ./add-voice <이름> <녹음파일(m4a/mp3/wav…)>
+#   → voices/<이름>.wav (24kHz 모노, 최대 30초) + voices/<이름>.txt (자동 받아쓰기)
+# 받아쓰기 결과는 반드시 직접 열어서 실제 말한 그대로 고칠 것. 틀리면 복제 품질이 떨어진다.
+set -e
+cd "${0:A:h}"
+[[ $# -eq 2 ]] || { echo "사용법: ./add-voice <이름> <녹음파일>"; exit 1; }
+name=$1; src=$2
+export HF_HOME=$PWD/.hf
+ffmpeg -y -loglevel error -i "$src" -ac 1 -ar 24000 -t 30 \
+  -af "silenceremove=start_periods=1:start_threshold=-45dB,areverse,silenceremove=start_periods=1:start_threshold=-45dB,areverse" \
+  "voices/$name.wav"
+tmp=$(mktemp -d)
+.venv/bin/mlx_audio.stt.generate --model mlx-community/Qwen3-ASR-1.7B-8bit \
+  --audio "voices/$name.wav" --output-path "$tmp/t" --format txt --language ko >/dev/null 2>&1
+mv "$tmp/t.txt" "voices/$name.txt"; rmdir "$tmp"
+echo "등록됨: voices/$name.wav ($(ffprobe -v error -show_entries format=duration -of csv=p=0 voices/$name.wav)초)"
+echo "받아쓰기 (voices/$name.txt — 틀린 곳 고치세요):"; cat "voices/$name.txt"

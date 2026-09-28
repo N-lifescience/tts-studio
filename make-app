@@ -1,0 +1,91 @@
+#!/bin/zsh
+# Dock 에 둘 "TTS 작업실.app" 만들기: ./make-app
+#   → ~/Applications/TTS 작업실.app  (Finder 에서 Dock 으로 끌어다 놓으세요)
+# 앱을 열면 서버가 켜지고 브라우저가 열린다. 앱을 끄면(⌘Q) 서버도 꺼진다.
+# 이 폴더를 옮겼으면 다시 실행해서 앱을 새로 만들 것 (폴더 경로가 앱 안에 들어간다).
+set -e
+cd "${0:A:h}"
+DIR="$PWD"
+PORT=${STUDIO_PORT:-7870}
+APP="$HOME/Applications/TTS 작업실.app"
+mkdir -p "$HOME/Applications"
+
+SRC=$(mktemp -t tts-app).applescript
+cat > "$SRC" <<APPLESCRIPT
+property projectDir : "$DIR"
+property serverURL : "http://127.0.0.1:$PORT"
+property pidFile : "$DIR/.studio.pid"
+property logFile : "$HOME/Library/Logs/tts-studio.log"
+property startedHere : false
+
+on run
+	try
+		do shell script "test -x " & quoted form of (projectDir & "/studio")
+	on error
+		display dialog "TTS 작업실 폴더를 찾을 수 없습니다." & return & return & projectDir & return & return & "외장 SSD 가 연결돼 있는지 확인하세요." buttons {"확인"} default button 1 with icon stop with title "TTS 작업실"
+		quit
+		return
+	end try
+	if not my isUp() then
+		-- 백그라운드로 띄우는 명령만 & 로 보내야 do shell script 가 바로 돌아온다 (cd && … & 로 묶으면 멈춘다)
+		do shell script "export PATH=/opt/homebrew/bin:/usr/local/bin:\$PATH; cd " & quoted form of projectDir & " || exit 1; STUDIO_NO_OPEN=1 nohup ./studio > " & quoted form of logFile & " 2>&1 < /dev/null &"
+		set startedHere to true
+		repeat 120 times
+			if my isUp() then exit repeat
+			delay 0.5
+		end repeat
+		-- 실제로 포트를 잡은 서버 프로세스를 기억해 둔다 (끌 때 이것만 끈다)
+		try
+			do shell script "/usr/sbin/lsof -tiTCP:$PORT -sTCP:LISTEN > " & quoted form of pidFile
+		end try
+		if not my isUp() then
+			display dialog "서버가 켜지지 않았습니다. 기록을 확인하세요:" & return & logFile buttons {"확인"} default button 1 with icon caution with title "TTS 작업실"
+			quit
+			return
+		end if
+	end if
+	open location serverURL
+end run
+
+on reopen
+	open location serverURL
+end reopen
+
+on idle
+	-- 서버가 따로 꺼졌으면 앱도 닫는다 (Dock 의 불빛 = 서버가 켜져 있음)
+	if startedHere and not my isUp() then quit
+	return 30
+end idle
+
+on quit
+	if startedHere then
+		try
+			do shell script "test -f " & quoted form of pidFile & " && kill \$(cat " & quoted form of pidFile & ") ; rm -f " & quoted form of pidFile
+		end try
+	end if
+	continue quit
+end quit
+
+on isUp()
+	try
+		do shell script "curl -fs -m 2 " & serverURL & "/api/status > /dev/null"
+		return true
+	on error
+		return false
+	end try
+end isUp
+APPLESCRIPT
+
+rm -rf "$APP"
+osacompile -s -o "$APP" "$SRC"   # -s: 켜진 채로 있는 앱 (끄면 서버도 끈다)
+rm "$SRC"
+.venv/bin/python tools/make_icon.py "$APP/Contents/Resources/applet.icns"
+rm -f "$APP/Contents/Resources/Assets.car"   # 기본 아이콘이 우리 아이콘을 덮지 않게
+/usr/libexec/PlistBuddy -c "Delete :CFBundleIconName" "$APP/Contents/Info.plist" 2>/dev/null || true
+/usr/libexec/PlistBuddy -c "Set :CFBundleName TTS 작업실" "$APP/Contents/Info.plist" 2>/dev/null || true
+/usr/libexec/PlistBuddy -c "Add :CFBundleIdentifier string com.n-lifescience.tts-studio" "$APP/Contents/Info.plist" 2>/dev/null \
+  || /usr/libexec/PlistBuddy -c "Set :CFBundleIdentifier com.n-lifescience.tts-studio" "$APP/Contents/Info.plist"
+codesign --force --deep -s - "$APP" 2>/dev/null   # 고친 뒤 다시 서명해야 애플 실리콘에서 열린다
+touch "$APP"
+echo "만들었습니다: $APP"
+echo "Finder 에서 열어 Dock 으로 끌어다 놓으세요:  open ~/Applications"

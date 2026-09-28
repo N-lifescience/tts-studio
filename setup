@@ -1,0 +1,35 @@
+#!/bin/zsh
+# 처음 한 번: ./setup
+#   파이썬 환경·화면 빌드·Dock 앱까지 만든다. 모델(약 7GB)은 첫 생성 때 자동으로 받는다.
+# 필요한 것: 애플 실리콘 맥(M1 이상), Homebrew
+set -e
+cd "${0:A:h}"
+
+if [[ "$(uname -m)" != "arm64" ]]; then
+  echo "애플 실리콘 맥(M1 이상)에서만 돕니다. (음성 모델이 MLX 전용)"; exit 1
+fi
+command -v brew >/dev/null || { echo "Homebrew 가 필요합니다: https://brew.sh"; exit 1; }
+
+for pkg in python@3.12 ffmpeg node; do
+  brew list --versions $pkg >/dev/null 2>&1 || { echo "설치: $pkg"; brew install $pkg; }
+done
+
+PY="$(brew --prefix python@3.12)/bin/python3.12"
+[[ -d .venv ]] || "$PY" -m venv .venv
+echo "파이썬 패키지 설치 중…"
+.venv/bin/pip install -q --upgrade pip
+.venv/bin/pip install -q -r requirements.txt
+
+echo "화면 빌드 중…"
+(cd web && npm install --silent && npm run build --silent >/dev/null)
+
+mkdir -p voices projects
+./make-app
+
+cat <<'MSG'
+
+준비 끝.
+  1) ~/Applications 의 "TTS 작업실" 을 Dock 으로 끌어다 놓고 누르세요. (터미널이 편하면 ./studio)
+  2) 처음 열면 목소리 관리 화면이 뜹니다. 20~30초 녹음하고, 자동 받아쓰기를 실제 말한 대로 고치세요.
+  3) 첫 생성 때 모델(약 7GB)을 내려받느라 몇 분 걸립니다. 그다음부터는 바로 됩니다.
+MSG

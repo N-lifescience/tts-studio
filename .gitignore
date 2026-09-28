@@ -1,0 +1,16 @@
+# 목소리 원본·생성물·모델은 SSD 에만 (GitHub 금지 — 목소리는 개인정보)
+.venv/
+.hf/
+voices/
+out/
+*.wav
+*.m4a
+*.mp3
+projects/
+web/node_modules/
+web/dist/
+__pycache__/
+.studio.pid
+*.app
+.DS_Store
+.pytest_cache/

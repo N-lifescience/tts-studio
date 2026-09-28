@@ -1,0 +1,3 @@
+#!/bin/zsh
+# 사용법: ./narrate scripts/ep01.txt  (자세한 옵션: ./narrate -h)
+cd "${0:A:h}" && exec .venv/bin/python narrate.py "$@"

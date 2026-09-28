@@ -1,0 +1,23 @@
+#!/bin/zsh
+# TTS 작업실 켜기: ./studio   (끄기: 이 창에서 Ctrl+C)
+# 화면 코드가 바뀌었으면 먼저 다시 빌드하고, 서버를 켠 뒤 브라우저를 연다.
+set -e
+cd "${0:A:h}"
+PORT=${STUDIO_PORT:-7870}
+URL="http://127.0.0.1:$PORT"
+
+if curl -fs "$URL/api/status" >/dev/null 2>&1; then
+  echo "이미 켜져 있습니다 → $URL"
+  open "$URL"
+  exit 0
+fi
+
+if [[ ! -f web/dist/index.html ]] || [[ -n "$(find web/src web/index.html -newer web/dist/index.html 2>/dev/null | head -1)" ]]; then
+  echo "화면 빌드 중…"
+  [[ -d web/node_modules ]] || (cd web && npm install --silent)
+  (cd web && npm run build --silent >/dev/null)
+fi
+
+( for i in {1..40}; do sleep 0.5; curl -fs "$URL/api/status" >/dev/null 2>&1 && { [[ -z "$STUDIO_NO_OPEN" ]] && open "$URL"; break; }; done ) &
+echo "TTS 작업실 → $URL  (끄려면 Ctrl+C)"
+exec .venv/bin/python -m server.app
