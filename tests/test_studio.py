@@ -520,3 +520,25 @@ PART 2. 메뚜기인가
     )
     # 표가 없는 평범한 텍스트는 그대로
     assert importer.extract_text("가.\n나.".encode(), "a.md") == "가.\n나."
+
+
+def test_import_md_flattened_cell_lines():
+    """드라이브 글자에서는 칸 안 줄바꿈이 사라져 '빌리고,때로는' 처럼 붙어 온다 → 줄을 되살린다."""
+    from server import importer
+
+    md = """| 타임코드 | 나레이션 (녹음용) |
+| :-: | :-: |
+| 9:55 | 생명은 모든 것을 새로 발명하지 않았습니다.때로는 빌리고,때로는 합치고,그리고 다시 썼습니다. |
+| 5:28 | 물론 먹었다고 \\`+1 진화 포인트\\`가 뜨지는 않습니다. |
+"""
+    assert importer.extract_text(md.encode(), "a.md") == (
+        "생명은 모든 것을 새로 발명하지 않았습니다.\n때로는 빌리고,\n때로는 합치고,\n그리고 다시 썼습니다.\n"
+        "물론 먹었다고 +1 진화 포인트가 뜨지는 않습니다."
+    )
+
+
+def test_split_keeps_ellipsis_inside_line():
+    assert [c[1] for c in split_script("카직스는 보통… 메뚜기라고 불리거든요. 아니면… 바퀴벌레일까요?")] == [
+        "카직스는 보통… 메뚜기라고 불리거든요.",
+        "아니면… 바퀴벌레일까요?",
+    ]

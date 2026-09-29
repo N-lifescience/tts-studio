@@ -11,7 +11,8 @@ def split_script(text):
     paras = [p.strip() for p in re.split(r"\n\s*\n", text) if p.strip()]
     for pi, para in enumerate(paras):
         for line in para.splitlines():
-            for s in re.split(r"(?<=[.?!…])\s+", line.strip()):
+            # "…" 는 문장 안의 쉼이라 끊지 않는다 ("카직스는 보통… 메뚜기라고" 를 한 번에 읽어야 억양이 이어진다)
+            for s in re.split(r"(?<=[.?!])\s+", line.strip()):
                 s = s.strip()
                 while len(s) > MAX_CHARS and "," in s[:MAX_CHARS]:
                     cut = s.rindex(",", 0, MAX_CHARS) + 1

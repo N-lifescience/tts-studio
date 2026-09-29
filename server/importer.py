@@ -55,7 +55,10 @@ def _narration_col(header_cells):
 
 def _split_sentences(text):
     """한 칸에 문장이 붙어 있으면 ('있습니다.사마귀입니다.') 문장마다 줄을 나눈다."""
-    text = re.sub(r"(?<=[.?!…])(?=[^\s.?!…\"'”’)\]])", "\n", text)
+    text = re.sub(r"(?<=[.?!])(?=[^\s.?!…\"'”’)\]])", "\n", text)
+    text = re.sub(r"…(?=[가-힣A-Za-z])", "… ", text)  # '생물도…다른' → '생물도… 다른' (자막용)
+    # 쉼표 뒤에 띄어쓰기 없이 글자가 붙어 있으면 원래 칸 안에서 줄이 나뉘어 있던 것 ('빌리고,때로는')
+    text = re.sub(r"(?<=,)(?=[가-힣A-Za-z])", "\n", text)
     return [t.strip() for t in text.split("\n") if t.strip()]
 
 
@@ -107,6 +110,7 @@ def _md_narration(text):
                     cells = [c.strip() for c in lines[i].strip().strip("|").split("|")]
                     if col < len(cells):
                         cell = re.sub(r"\\(.)", r"\1", cells[col])  # 마크다운 이스케이프 풀기
+                        cell = cell.replace("`", "").replace("**", "")  # 코드·굵게 표시는 읽지 않는다
                         rows.extend(_split_sentences(cell.replace("<br>", "\n")))
                 i += 1
             if col is not None:
