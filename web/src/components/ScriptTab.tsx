@@ -37,6 +37,29 @@ export function ScriptTab({ project, setProject, fail, notify, goLines }: Projec
         <b>줄바꿈</b>과 <b>문장 끝(. ? !)</b>마다 따로 만들고 짧게 쉽니다. <b>빈 줄</b>은 문단 구분이라 길게 쉽니다.
         숫자·영어는 소리 나는 대로 한글로 쓰는 게 가장 정확합니다 (LoL → 롤).
       </div>
+      <div className="toolbar">
+        <label className="btn file-btn">
+          파일에서 불러오기
+          <input
+            type="file"
+            accept=".docx,.pdf,.txt,.md"
+            onChange={async (e) => {
+              const f = e.target.files?.[0]
+              e.target.value = ''
+              if (!f) return
+              if (text.trim() && !window.confirm('지금 대본 칸을 파일 내용으로 바꿀까요? (적용하기 전까지는 저장되지 않습니다)')) return
+              try {
+                const r = await api.parseFile(f)
+                setText(r.text)
+                notify(`"${f.name}" 에서 ${r.lines}줄을 불러왔습니다. 확인하고 적용하세요.`)
+              } catch (err) {
+                fail(err)
+              }
+            }}
+          />
+        </label>
+        <span className="muted small">Word(.docx) · PDF · 텍스트. 빈 줄은 문단 구분으로 들어옵니다.</span>
+      </div>
       <textarea
         className="script"
         value={text}

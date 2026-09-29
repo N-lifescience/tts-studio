@@ -12,7 +12,7 @@ import traceback
 
 import soundfile as sf
 
-from . import audio, check, config, engine, exporter, store
+from . import audio, check, config, engine, exporter, importer, store
 
 # ── 이벤트 ────────────────────────────────────────────────
 
@@ -162,6 +162,54 @@ def _run_line(pid, lid, manual):
     _set_status(pid, lid, "done")
 
 
+# ── 대본 폴더 자동 불러오기 · 끝나면 자동 내보내기 ─────────
+
+_export_when_done = set()
+
+
+def _after_import(d, settings):
+    publish({"type": "projects"})
+    todo = [l["id"] for l in d["lines"] if store.chosen_take(d, l) is None]
+    if settings.get("auto_generate") and todo:
+        if settings.get("auto_export"):
+            _export_when_done.add(d["id"])
+        enqueue(d["id"], todo)
+    elif settings.get("auto_export") and not todo:
+        _export_when_done.add(d["id"])
+        _check_exports()
+
+
+def _check_exports():
+    """생성이 끝난 에피소드 중 '끝나면 내보내기' 로 걸어 둔 것을 내보낸다."""
+    with _cv:
+        busy = {j[0] for j in _q} | ({_current[0]} if _current else set())
+    for pid in list(_export_when_done):
+        if pid in busy:
+            continue
+        _export_when_done.discard(pid)
+        try:
+            start_export(pid)
+        except exporter.NotReady as e:
+            publish({"type": "export", "project": pid, "state": "error", "message": f"자동 내보내기 못 함: {e}"})
+        except store.NotFound:
+            pass
+
+
+def scan_inbox():
+    return importer.scan(on_imported=_after_import)
+
+
+def _inbox_loop():
+    import time
+
+    while True:
+        try:
+            scan_inbox()
+        except Exception:
+            traceback.print_exc()
+        time.sleep(20)
+
+
 def _loop():
     global _current
     while True:
@@ -185,6 +233,7 @@ def _loop():
             with _cv:
                 _current = None
             _publish_queue()
+            _check_exports()
 
 
 _started = False
@@ -207,6 +256,7 @@ def start():
         _started = True
         threading.Thread(target=_loop, daemon=True, name="tts-worker").start()
         threading.Thread(target=_idle_loop, daemon=True, name="idle-unload").start()
+        threading.Thread(target=_inbox_loop, daemon=True, name="inbox").start()
 
 
 # ── 내보내기 ──────────────────────────────────────────────

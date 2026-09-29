@@ -102,8 +102,33 @@ export type ExportState =
   | { state: 'error'; message: string }
 
 export type ServerEvent =
+  | { type: 'projects' }
   | { type: 'line'; project: string; line: Line }
   | ({ type: 'queue' } & QueueState)
   | { type: 'export'; project: string; state: 'running'; message: string }
   | { type: 'export'; project: string; state: 'done'; result: ExportResult }
   | { type: 'export'; project: string; state: 'error'; message: string }
+
+export interface InboxSettings {
+  folder: string
+  auto_generate: boolean
+  auto_export: boolean
+}
+
+export interface InboxItem {
+  file: string
+  pid: string | null
+  title: string | null
+  lines: number | null
+  created: boolean | null
+  error: string | null
+  at: string
+}
+
+export interface InboxState {
+  settings: InboxSettings
+  suggestions: string[]
+  last_scan: string | null
+  error: string | null
+  recent: InboxItem[]
+}

@@ -350,3 +350,173 @@ def test_cut_ending_is_regenerated_and_flagged(env):
     assert v["check"] == "bad"
     t = v["takes"][-1]
     assert t["tail_ok"] is False and t["pron_ok"] is True  # 발음은 맞고 끝만 끊김
+
+
+# ── 대본 불러오기 ──
+
+
+def _docx_bytes(paras):
+    import io
+
+    import docx
+
+    doc = docx.Document()
+    for p in paras:
+        doc.add_paragraph(p)
+    buf = io.BytesIO()
+    doc.save(buf)
+    return buf.getvalue()
+
+
+def _pdf_bytes(lines):
+    """글자가 든 아주 작은 PDF (ASCII). 줄이 화면 폭에서 꺾인 것처럼 만든다."""
+    body = "BT /F1 12 Tf 72 720 Td " + " ".join(f"({ln}) Tj 0 -16 Td" for ln in lines) + " ET"
+    objs = [
+        "<< /Type /Catalog /Pages 2 0 R >>",
+        "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+        "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 4 0 R /Resources << /Font << /F1 5 0 R >> >> >>",
+        f"<< /Length {len(body)} >>\nstream\n{body}\nendstream",
+        "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>",
+    ]
+    out, offs = "%PDF-1.4\n", []
+    for i, o in enumerate(objs, 1):
+        offs.append(len(out))
+        out += f"{i} 0 obj\n{o}\nendobj\n"
+    x = len(out)
+    out += f"xref\n0 {len(objs) + 1}\n0000000000 65535 f \n" + "".join(f"{o:010d} 00000 n \n" for o in offs)
+    out += f"trailer\n<< /Size {len(objs) + 1} /Root 1 0 R >>\nstartxref\n{x}\n%%EOF"
+    return out.encode("latin-1")
+
+
+def test_import_docx_keeps_lines_and_paragraphs():
+    from server import importer
+
+    data = _docx_bytes(["먼저 몸부터 보죠.", "몸을 빠르게 움직이는 뒤쪽 다리", "", "", "사마귀입니다.", "3"])
+    text = importer.extract_text(data, "ep02 사마귀.docx")
+    assert text == "먼저 몸부터 보죠.\n몸을 빠르게 움직이는 뒤쪽 다리\n\n사마귀입니다."  # 빈 단락 = 문단, 쪽 번호는 뺌
+    assert importer.title_from("ep02_사마귀.docx") == "ep02 사마귀"
+
+
+def test_import_pdf_rejoins_wrapped_lines():
+    from server import importer
+
+    data = _pdf_bytes(["This sentence is wrapped", "across two lines.", "Second one."])
+    assert importer.extract_text(data, "a.pdf") == "This sentence is wrapped across two lines.\nSecond one."
+
+
+def test_import_txt_cp949_and_bad_types():
+    from server import importer
+
+    assert importer.extract_text("가나다.\n\n\n라마.".encode("cp949"), "a.txt") == "가나다.\n\n라마."
+    for name in ("a.doc", "a.hwp", "a.png"):
+        with pytest.raises(importer.ImportError_):
+            importer.extract_text(b"x", name)
+
+
+def test_inbox_scan_creates_then_updates(env, monkeypatch):
+    import os
+
+    from server import importer
+
+    monkeypatch.setattr(importer, "SETTINGS_FILE", env["tmp"] / "settings.json")
+    queued = []
+    monkeypatch.setattr(worker, "enqueue", lambda pid, lids, manual=False: queued.append((pid, len(lids))) or len(lids))
+    inbox = env["tmp"] / "drive" / "TTS 대본"
+    inbox.mkdir(parents=True)
+    importer.save_settings({"folder": str(inbox), "auto_generate": True, "auto_export": False})
+    f = inbox / "ep02 사마귀.docx"
+    f.write_bytes(_docx_bytes(["먼저 몸부터 보죠.", "사마귀입니다."]))
+    os.utime(f, (1_000_000_000, 1_000_000_000))  # '내려받는 중' 이 아니게 (5초 전보다 오래된 파일)
+    assert worker.scan_inbox() == 1
+    assert worker.scan_inbox() == 0  # 안 바뀌면 다시 안 불러옴
+    [p] = store.list_projects()
+    assert p["title"] == "ep02 사마귀" and p["lines"] == 2 and queued == [(p["id"], 2)]
+
+    f.write_bytes(_docx_bytes(["먼저 몸부터 보죠.", "사마귀입니다.", "끝."]))
+    os.utime(f, (1_000_000_100, 1_000_000_100))
+    assert worker.scan_inbox() == 1
+    [p2] = store.list_projects()  # 새로 만들지 않고 같은 에피소드의 대본을 바꾼다
+    assert p2["id"] == p["id"] and p2["lines"] == 3
+
+
+def test_api_import_project_and_parse(client, env, monkeypatch):
+    from server import importer
+
+    monkeypatch.setattr(importer, "SETTINGS_FILE", env["tmp"] / "settings.json")
+    r = client.post("/api/import/parse", files={"file": ("ep03.docx", _docx_bytes(["하나.", "둘."]), "application/octet-stream")})
+    assert r.status_code == 200 and r.json()["text"] == "하나.\n둘." and r.json()["title"] == "ep03"
+    assert client.post("/api/import/parse", files={"file": ("a.hwp", b"x", "application/octet-stream")}).status_code == 400
+    r = client.post("/api/projects/import", data={"text": "가.\n나.", "title": "드라이브 문서", "generate": "false"})
+    assert r.status_code == 200 and r.json()["title"] == "드라이브 문서" and len(r.json()["lines"]) == 2
+    folder = env["tmp"] / "drive" / "TTS 대본"
+    folder.parent.mkdir()
+    r = client.put("/api/inbox", json={"folder": str(folder), "auto_generate": False, "auto_export": False})
+    assert r.status_code == 200 and folder.is_dir()  # 없으면 만들어 준다
+    assert client.put("/api/inbox", json={"folder": "상대/경로"}).status_code == 400
+
+
+def _docx_table_bytes(parts):
+    """제작용 대본처럼: 앞에 제작 메모 단락, PART 마다 표 (타임코드 | 장면 | 나레이션 (녹음용) | 화면)."""
+    import io
+
+    import docx
+
+    doc = docx.Document()
+    doc.add_paragraph("제작 원칙: 이 줄은 대본이 아니다.")
+    for rows in parts:
+        t = doc.add_table(rows=1, cols=4)
+        for c, h in zip(t.rows[0].cells, ["타임코드", "장면 / 의도", "나레이션 (녹음용)", "화면 / 자료"]):
+            c.text = h
+        for tc, narr in rows:
+            r = t.add_row().cells
+            r[0].text, r[1].text, r[3].text = tc, "장면", "카메라 설명"
+            r[2].text = narr[0]
+            for extra in narr[1:]:
+                r[2].add_paragraph(extra)
+    buf = io.BytesIO()
+    doc.save(buf)
+    return buf.getvalue()
+
+
+def test_import_docx_production_table_takes_narration_column():
+    from server import importer
+
+    data = _docx_table_bytes([
+        [("0:00", ["여기, 협곡을 누비는 괴물이 있습니다."]), ("0:25", ["하지만 단어 하나는 떠오릅니다.벌레."])],
+        [("0:47", ["먼저 몸부터 보죠.", "몸을 빠르게 움직이는 뒤쪽 다리."])],
+    ])
+    assert importer.extract_text(data, "script.docx") == (
+        "여기, 협곡을 누비는 괴물이 있습니다.\n하지만 단어 하나는 떠오릅니다.\n벌레.\n\n"
+        "먼저 몸부터 보죠.\n몸을 빠르게 움직이는 뒤쪽 다리."
+    )
+
+
+def test_import_markdown_table_from_drive_text():
+    from server import importer
+
+    md = """조성주의 바이올로지 - 제작용 대본
+
+| 예상 러닝타임 | 9분 | 콘텐츠 형식 | 영상 에세이 |
+| :-: | :-: | :-: | :-: |
+| 핵심 구조 | 훅 | 핵심 타깃 | 10\\~30대 |
+
+PART 1. 협곡에 사는 괴물
+
+| 타임코드 | 장면 / 의도 | 나레이션 (녹음용) | 화면 / 자료 |
+| :-: | :-: | :-: | :-: |
+| 0:00–0:05 | 콜드 오픈 | 여기, 협곡을 누비는 괴물이 있습니다. | 카직스 이동 |
+| 0:25–0:32 | 훅 | 하지만 이 모든 행동을 보고도, 꽤 잘 어울리는 단어 하나는 떠오릅니다.벌레. | \\`벌레.\\` |
+
+PART 2. 메뚜기인가
+
+| 타임코드 | 장면 | 나레이션 (녹음용) | 화면 |
+| :-: | :-: | :-: | :-: |
+| 1:38–1:52 | 반론 | 그런데 롤을 해본 사람이라면 조금 이상할 겁니다.카직스는 보통… 메뚜기라고 불리거든요. | 점프 |
+"""
+    assert importer.extract_text(md.encode(), "drive.md") == (
+        "여기, 협곡을 누비는 괴물이 있습니다.\n"
+        "하지만 이 모든 행동을 보고도, 꽤 잘 어울리는 단어 하나는 떠오릅니다.\n벌레.\n\n"
+        "그런데 롤을 해본 사람이라면 조금 이상할 겁니다.\n카직스는 보통… 메뚜기라고 불리거든요."
+    )
+    # 표가 없는 평범한 텍스트는 그대로
+    assert importer.extract_text("가.\n나.".encode(), "a.md") == "가.\n나."

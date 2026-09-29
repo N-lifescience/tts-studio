@@ -13,6 +13,8 @@ interface Props {
   onDeleteProject: (p: ProjectSummary) => void
   onOpenVoice: (name?: string) => void
   onDeleteVoice: (name: string) => void
+  inboxOn: boolean
+  onOpenInbox: () => void
 }
 
 const OPEN_KEY = 'tts-studio:sections'
@@ -132,6 +134,23 @@ export function Sidebar(props: Props) {
           + 새 목소리 녹음
         </button>
       </Section>
+
+      <section className="side-section">
+        <ul className="side-list">
+          <li className={`side-row ${view.kind === 'inbox' ? 'active' : ''}`}>
+            <button className="side-item" onClick={props.onOpenInbox}>
+              <svg viewBox="0 0 16 16" width="15" height="15" aria-hidden>
+                <path d="M1.5 4.5a1 1 0 0 1 1-1h3.2l1.3 1.5h6.5a1 1 0 0 1 1 1v6.5a1 1 0 0 1-1 1h-11a1 1 0 0 1-1-1z" fill="none" stroke="currentColor" strokeWidth="1.3" />
+              </svg>
+              <span className="side-title">대본 폴더</span>
+              <span className="side-meta">
+                {props.inboxOn && <span className="dot on" />}
+                {props.inboxOn ? '켜짐' : '꺼짐'}
+              </span>
+            </button>
+          </li>
+        </ul>
+      </section>
 
       <div className="side-foot">
         {!online ? (

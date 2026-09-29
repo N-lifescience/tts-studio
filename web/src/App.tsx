@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { api } from './api'
+import { InboxView } from './components/InboxView'
 import { ProjectView } from './components/ProjectView'
 import { Sidebar } from './components/Sidebar'
 import { VoicesView } from './components/VoicesView'
 import type { ExportState, Line, Project, ProjectSummary, QueueState, ServerEvent, Voice } from './types'
 
-type View = { kind: 'project'; id: string } | { kind: 'voices'; focus?: string } | { kind: 'empty' }
+type View = { kind: 'project'; id: string } | { kind: 'voices'; focus?: string } | { kind: 'inbox' } | { kind: 'empty' }
 
 const LAST = 'tts-studio:last'
 
@@ -34,6 +35,7 @@ export default function App() {
   const [exports, setExports] = useState<Record<string, ExportState>>({})
   const [toast, setToast] = useState<{ msg: string; bad?: boolean } | null>(null)
   const [online, setOnline] = useState(true)
+  const [inboxOn, setInboxOn] = useState(false)
   const viewRef = useRef(view)
   useEffect(() => {
     viewRef.current = view
@@ -48,6 +50,7 @@ export default function App() {
 
   const loadProjects = useCallback(() => api.projects().then(setProjects).catch(fail), [fail])
   const loadVoices = useCallback(() => api.voices().then(setVoices).catch(fail), [fail])
+  const loadInbox = useCallback(() => api.inbox().then((s) => setInboxOn(!!s.settings.folder)).catch(() => {}), [])
 
   const openProject = useCallback(
     (id: string) => {
@@ -72,13 +75,14 @@ export default function App() {
         setProjects(ps)
         setVoices(vs)
         setQueue(st)
+        loadInbox()
         const last = readLast()
         const pick = ps.find((p) => p.id === last) ?? ps[0]
         if (pick) openProject(pick.id)
         else if (vs.length === 0) setView({ kind: 'voices' })
       })
       .catch(fail)
-  }, [openProject, fail])
+  }, [openProject, fail, loadInbox])
 
   // 서버에서 오는 진행 상황
   useEffect(() => {
@@ -92,7 +96,9 @@ export default function App() {
     es.onerror = () => setOnline(false)
     es.onmessage = (m) => {
       const ev = JSON.parse(m.data) as ServerEvent
-      if (ev.type === 'line') {
+      if (ev.type === 'projects') {
+        api.projects().then(setProjects).catch(() => {})
+      } else if (ev.type === 'line') {
         setProject((p) => (p && p.id === ev.project ? replaceLine(p, ev.line) : p))
       } else if (ev.type === 'queue') {
         setQueue({ pending: ev.pending, current: ev.current, models: ev.models })
@@ -177,6 +183,8 @@ export default function App() {
         onDeleteProject={deleteProject}
         onOpenVoice={openVoice}
         onDeleteVoice={deleteVoice}
+        inboxOn={inboxOn}
+        onOpenInbox={() => setView({ kind: 'inbox' })}
       />
       <main className="main">
         {view.kind === 'project' && project && project.id === view.id && (
@@ -202,6 +210,14 @@ export default function App() {
             focus={view.focus}
             reload={loadVoices}
             onDelete={deleteVoice}
+            notify={notify}
+            fail={fail}
+          />
+        )}
+        {view.kind === 'inbox' && (
+          <InboxView
+            onOpenProject={openProject}
+            onChanged={loadInbox}
             notify={notify}
             fail={fail}
           />

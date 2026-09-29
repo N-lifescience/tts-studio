@@ -1,4 +1,4 @@
-import type { Line, Project, ProjectSummary, QueueState, Settings, Voice } from './types'
+import type { InboxSettings, InboxState, Line, Project, ProjectSummary, QueueState, Settings, Voice } from './types'
 
 async function req<T>(method: string, url: string, body?: unknown): Promise<T> {
   const init: RequestInit = { method }
@@ -63,6 +63,15 @@ export const api = {
   exportInfo: (id: string) =>
     req<{ exists: boolean; folder: string; local?: string; icloud?: string | null; files?: string[] }>('GET', `${P(id)}/export`),
   reveal: (id: string, where: 'icloud' | 'local') => req<{ ok: boolean }>('POST', `${P(id)}/reveal?where=${where}`),
+  parseFile: (file: File) => {
+    const fd = new FormData()
+    fd.append('file', file, file.name)
+    return req<{ text: string; title: string; lines: number }>('POST', '/api/import/parse', fd)
+  },
+  inbox: () => req<InboxState>('GET', '/api/inbox'),
+  putInbox: (s: InboxSettings) => req<InboxState>('PUT', '/api/inbox', s),
+  scanInbox: () => req<InboxState & { imported: number }>('POST', '/api/inbox/scan'),
+  revealInbox: () => req<{ ok: boolean }>('POST', '/api/inbox/reveal'),
   voices: () => req<Voice[]>('GET', '/api/voices'),
   addVoice: (name: string, file: Blob, filename: string, overwrite = false) => {
     const fd = new FormData()

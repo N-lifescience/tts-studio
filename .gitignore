@@ -16,3 +16,4 @@ __pycache__/
 .pytest_cache/
 .venv-torch/
 tools/icon.ico
+studio-settings.json

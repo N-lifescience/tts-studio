@@ -929,3 +929,39 @@ button.pill {
     margin-left: 0;
   }
 }
+
+/* 대본 폴더 */
+.field {
+  display: grid;
+  gap: 5px;
+  font-size: 13px;
+  color: var(--muted);
+}
+.field input {
+  font-size: 14px;
+  color: var(--text);
+}
+.suggest {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+.check {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+}
+.check input {
+  accent-color: var(--accent);
+  width: 16px;
+  height: 16px;
+}
+.ok-pill {
+  background: var(--ok-soft);
+  color: var(--ok);
+}
+.dot.on {
+  background: var(--ok);
+}

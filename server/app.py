@@ -19,7 +19,7 @@ from fastapi.responses import FileResponse, JSONResponse, Response, StreamingRes
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
-from . import audio, config, engine, exporter, store, subtitles, worker
+from . import audio, config, engine, exporter, importer, store, subtitles, worker
 
 HOST = "127.0.0.1"
 PORT = int(os.environ.get("STUDIO_PORT", "7870"))
@@ -67,6 +67,11 @@ async def _nf(request, exc):
 
 @app.exception_handler(store.BadRequest)
 async def _br(request, exc):
+    return JSONResponse({"detail": str(exc)}, status_code=400)
+
+
+@app.exception_handler(importer.ImportError_)
+async def _ie(request, exc):
     return JSONResponse({"detail": str(exc)}, status_code=400)
 
 
@@ -344,11 +349,15 @@ def reveal(pid: str, where: str = "icloud"):
     target = (config.EXPORT_ROOT / exporter.folder_name(d)) if where == "icloud" else store._dir(pid) / "export"
     if not target.exists():
         raise store.NotFound(str(target))
+    _open_folder(target)
+    return {"ok": True}
+
+
+def _open_folder(target: Path):
     if sys.platform == "win32":
         os.startfile(str(target))  # 탐색기
     else:
         subprocess.run(["open" if sys.platform == "darwin" else "xdg-open", str(target)], check=False)
-    return {"ok": True}
 
 
 @app.get("/api/projects/{pid}/subtitle-preview.png")
@@ -359,6 +368,92 @@ def subtitle_preview(pid: str, text: str = "자막 미리보기입니다"):
     buf = BytesIO()
     img.save(buf, "PNG")
     return Response(buf.getvalue(), media_type="image/png", headers={"Cache-Control": "no-store"})
+
+
+# ── 대본 불러오기 ─────────────────────────────────────────
+
+
+def _read_upload(file: UploadFile):
+    data = b""
+    while chunk := file.file.read(1 << 20):
+        data += chunk
+        if len(data) > importer.MAX_BYTES:
+            raise store.BadRequest("파일이 너무 큽니다 (30MB 이하)")
+    return data
+
+
+@app.post("/api/import/parse")
+def import_parse(file: UploadFile = File(...)):
+    """Word·PDF·텍스트 파일 → 대본 글자 (대본 탭 '파일에서 불러오기'). 저장은 하지 않는다."""
+    text = importer.extract_text(_read_upload(file), file.filename or "")
+    return {"text": text, "title": importer.title_from(file.filename or ""), "lines": len(text.splitlines())}
+
+
+@app.post("/api/projects/import")
+def import_project(
+    file: UploadFile | None = File(None),
+    text: str = Form(""),
+    title: str = Form(""),
+    generate: bool = Form(True),
+    export: bool = Form(False),
+):
+    """파일이나 글자로 에피소드를 바로 만든다 (Claude 가 드라이브 문서를 넣을 때 쓰는 창구).
+    generate: 음성까지 생성, export: 생성이 끝나면 내보내기까지."""
+    if file is not None and file.filename:
+        text = importer.extract_text(_read_upload(file), file.filename)
+        title = title or importer.title_from(file.filename)
+    if not text.strip():
+        raise store.BadRequest("대본이 비어 있습니다")
+    d, _ = importer.import_script(text[:100_000], (title or "새 에피소드")[:100])
+    worker.publish({"type": "projects"})
+    if generate or export:
+        worker._after_import(d, {"auto_generate": generate, "auto_export": export})
+    return store.project_view(store.load(d["id"]))
+
+
+class InboxSettings(BaseModel):
+    folder: str = Field("", max_length=1000)
+    auto_generate: bool = True
+    auto_export: bool = False
+
+
+@app.get("/api/inbox")
+def inbox():
+    return {"settings": importer.load_settings(), "suggestions": importer.drive_folders(), **importer.state}
+
+
+@app.put("/api/inbox")
+def put_inbox(body: InboxSettings):
+    folder = body.folder.strip()
+    if folder:
+        p = Path(folder).expanduser()
+        if not p.is_absolute():
+            raise store.BadRequest("폴더는 전체 경로로 적어 주세요")
+        if not p.exists():
+            if not p.parent.is_dir():
+                raise store.BadRequest(f"그 위 폴더가 없습니다: {p.parent}")
+            p.mkdir()  # 드라이브 안에 'TTS 대본' 폴더를 만들어 준다
+        if not p.is_dir():
+            raise store.BadRequest("폴더가 아닙니다")
+        folder = str(p)
+    importer.save_settings({"folder": folder, "auto_generate": body.auto_generate, "auto_export": body.auto_export})
+    worker.scan_inbox()
+    return inbox()
+
+
+@app.post("/api/inbox/scan")
+def scan_inbox_now():
+    n = worker.scan_inbox()
+    return {"imported": n, **inbox()}
+
+
+@app.post("/api/inbox/reveal")
+def reveal_inbox():
+    folder = importer.load_settings()["folder"]
+    if not folder or not Path(folder).is_dir():
+        raise store.NotFound(folder)
+    _open_folder(Path(folder))
+    return {"ok": True}
 
 
 # ── 목소리 ────────────────────────────────────────────────
