@@ -8,7 +8,9 @@
 
 ## 처음 설치 (한 번만)
 
-필요한 것: **애플 실리콘 맥(M1 이상, 메모리 16GB 권장)**, [Homebrew](https://brew.sh), 디스크 여유 10GB
+### 맥 (애플 실리콘 M1 이상, 메모리 16GB 권장)
+
+[Homebrew](https://brew.sh) 가 있어야 한다. 디스크 여유 10GB.
 
 ```bash
 git clone https://github.com/N-lifescience/tts-studio.git
@@ -18,9 +20,30 @@ cd tts-studio
 
 파이썬 환경·화면 빌드·Dock 앱까지 만들어 준다. 음성 모델(약 7GB)은 첫 생성 때 자동으로 받는다.
 
+### 윈도우 10·11
+
+1. [저장소 ZIP](https://github.com/N-lifescience/tts-studio/archive/refs/heads/main.zip) 을 받아 풀거나 `git clone`
+2. 폴더 안 **`setup.bat`** 더블클릭 → 파이썬·ffmpeg·Node.js 설치, 환경 만들기, 바탕화면 **TTS 작업실** 아이콘까지 만든다
+3. 바탕화면 아이콘을 누르면 까만 창이 뜨고 브라우저가 열린다. **그 창을 닫으면 꺼진다.**
+
+| 컴퓨터 | 쓰는 모델 | 속도 (대략) |
+|---|---|---|
+| NVIDIA 그래픽카드 (VRAM 8GB 이상) | 1.7B (맥과 같은 품질) | 문장 길이와 비슷하거나 더 빠름 |
+| 그래픽카드 가속 없음 (인텔 내장 그래픽 등) | 0.6B (품질이 조금 낮음) | 문장 길이의 5~15배 |
+
+- 인텔 내장 그래픽(UHD·Iris)은 AI 계산에 못 써서 CPU 로 돈다.
+- **메모리 8GB 노트북**: 돌아가긴 하지만 빠듯하다. 브라우저 말고 다른 프로그램은 닫고,
+  목소리 샘플은 **10~15초로 짧게** 녹음한다 (짧을수록 빠르고 가볍다).
+- 윈도우는 맥과 같은 서버·화면을 쓰고, 목소리 엔진만 PyTorch(공식 `qwen-tts`)와 `faster-whisper` 로 바뀐다.
+- **윈도우는 문장 끝이 뚝 끊기는 일이 맥보다 잦다** (공식 PyTorch 판 실측: 절반 정도). 끝 끊김·발음 검사는 똑같이 한다.
+  GPU 는 맥처럼 3번까지 알아서 다시 뽑고, **CPU 는 한 번에 수십 초라 자동으로 다시 뽑지 않고 표시만** 한다 →
+  빨간 줄만 골라 "다시 뽑기".
+
 ## 켜기
 
-**Dock 의 "TTS 작업실" 아이콘을 누른다.** 서버가 켜지고 브라우저가 열린다.
+**맥: Dock 의 "TTS 작업실" 아이콘 / 윈도우: 바탕화면 "TTS 작업실" 아이콘.**
+
+아래는 맥 기준 설명. **Dock 의 "TTS 작업실" 아이콘을 누른다.** 서버가 켜지고 브라우저가 열린다.
 앱을 끄면(⌘Q) 서버도 같이 꺼진다. Dock 아이콘 밑 불빛 = 서버가 켜져 있다는 뜻.
 
 - 아이콘이 없으면 `./make-app` → `~/Applications/TTS 작업실.app` 을 Dock 으로 끌어다 놓는다.
@@ -85,11 +108,12 @@ cd tts-studio
 ## 구조
 
 ```
-setup             처음 설치
-make-app          Dock 앱 만들기 (~/Applications/TTS 작업실.app)
-studio            켜기 스크립트 (화면이 바뀌었으면 자동 빌드)
+setup             맥 처음 설치          setup.bat / setup.ps1   윈도우 처음 설치
+make-app          맥 Dock 앱 만들기     studio.bat / launch.py  윈도우 켜기 (바탕화면 아이콘)
+studio            맥 켜기 스크립트 (화면이 바뀌었으면 자동 빌드)
 server/           FastAPI 서버 (127.0.0.1 전용)
-  engine.py         모델: Qwen3-TTS 1.7B(목소리 복제) · Qwen3-ASR 1.7B(발음 검사)
+  engine.py         모델 부르기 (맥 = engine_mlx: Qwen3-TTS 1.7B · Qwen3-ASR 1.7B,
+                    윈도우 = engine_torch: Qwen3-TTS 1.7B/0.6B · faster-whisper)
   check.py          자모 단위 비교 — "찢→뛰"(오류)와 "공허→공어"(소리 나는 대로)를 구분
   worker.py         생성 줄 세우기 + 진행 상황 실시간 전송(SSE)
   exporter.py       이어 붙이기·음량·조각·iCloud 복사

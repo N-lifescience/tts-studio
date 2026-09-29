@@ -5,6 +5,11 @@ import type { ProjectProps } from './ProjectView'
 export function ExportTab({ project, exportState, fail, goLines }: ProjectProps & { goLines: () => void }) {
   const [info, setInfo] = useState<{ exists: boolean; folder: string; local?: string; icloud?: string | null; files?: string[] } | null>(null)
   const [starting, setStarting] = useState(false)
+  const [dest, setDest] = useState<{ icloud: boolean; root: string } | null>(null)
+
+  useEffect(() => {
+    api.status().then((st) => setDest({ icloud: st.icloud, root: st.export_root })).catch(() => {})
+  }, [])
 
   useEffect(() => {
     api.exportInfo(project.id).then(setInfo).catch(fail)
@@ -33,10 +38,16 @@ export function ExportTab({ project, exportState, fail, goLines }: ProjectProps 
   return (
     <div className="export-tab">
       <section className="card">
-        <h2>iCloud Drive 로 내보내기</h2>
-        <p className="muted">
-          아이패드 <b>파일 앱 → iCloud Drive → TTS → {info?.folder ?? project.title}</b> 에 자동으로 나타납니다. 루마퓨전에서 바로 불러오세요.
-        </p>
+        <h2>{dest?.icloud === false ? '내보내기' : 'iCloud Drive 로 내보내기'}</h2>
+        {dest?.icloud === false ? (
+          <p className="muted">
+            <b>{dest.root}</b> 폴더 안 <b>{info?.folder ?? project.title}</b> 에 저장됩니다. (이 컴퓨터엔 iCloud Drive 가 없어 문서 폴더로 보냅니다)
+          </p>
+        ) : (
+          <p className="muted">
+            아이패드 <b>파일 앱 → iCloud Drive → TTS → {info?.folder ?? project.title}</b> 에 자동으로 나타납니다. 루마퓨전에서 바로 불러오세요.
+          </p>
+        )}
         {missing > 0 ? (
           <p className="warn-text">
             아직 안 만든 줄이 {missing}개 있습니다.{' '}
@@ -63,7 +74,7 @@ export function ExportTab({ project, exportState, fail, goLines }: ProjectProps 
           <div className="toolbar">
             {icloud && (
               <button className="btn sm" onClick={() => api.reveal(project.id, 'icloud').catch(fail)}>
-                iCloud 폴더 열기
+                {dest?.icloud === false ? '내보낸 폴더 열기' : 'iCloud 폴더 열기'}
               </button>
             )}
             <button className="btn sm ghost" onClick={() => api.reveal(project.id, 'local').catch(fail)}>

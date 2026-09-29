@@ -118,7 +118,7 @@ def _run_line(pid, lid, manual):
     temperature = float(d["settings"]["temperature"])
 
     new = []
-    for attempt in range(1, config.MAX_AUTO_ATTEMPTS + 1):
+    for attempt in range(1, engine.max_attempts() + 1):
         _set_status(pid, lid, "generating")
         a = engine.generate(text, vwav, ref_text, temperature, secrets.randbits(31))
         tid = store.new_id("t")

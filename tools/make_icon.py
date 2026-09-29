@@ -1,4 +1,4 @@
-"""앱 아이콘(icns) 만들기: web/public/favicon.svg 와 같은 모양을 Pillow 로 그린다."""
+"""앱 아이콘(맥 icns · 윈도우 ico) 만들기: web/public/favicon.svg 와 같은 모양을 Pillow 로 그린다."""
 
 import subprocess
 import sys
@@ -20,6 +20,9 @@ def draw(size):
 
 
 def main(out):
+    if out.endswith(".ico"):  # 윈도우 바로가기 아이콘
+        draw(256).save(out, sizes=[(16, 16), (32, 32), (48, 48), (64, 64), (128, 128), (256, 256)])
+        return
     with tempfile.TemporaryDirectory() as tmp:
         iconset = Path(tmp) / "icon.iconset"
         iconset.mkdir()

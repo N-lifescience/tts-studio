@@ -14,3 +14,5 @@ __pycache__/
 *.app
 .DS_Store
 .pytest_cache/
+.venv-torch/
+tools/icon.ico

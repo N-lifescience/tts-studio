@@ -98,11 +98,11 @@ def export(d, progress=lambda msg: None):
     result = {"local": str(out), "icloud": None, "duration": round(total, 2), "files": sorted(
         str(p.relative_to(out)) for p in out.rglob("*") if p.is_file())}
 
-    if config.EXPORT_ROOT.parent.exists():
-        progress("iCloud Drive 로 복사 중")
-        dst = config.EXPORT_ROOT / folder_name(d)
-        if dst.exists():
-            shutil.rmtree(dst)
-        shutil.copytree(out, dst)
-        result["icloud"] = str(dst)
+    progress("iCloud Drive 로 복사 중" if config.EXPORT_IS_ICLOUD else "내보내기 폴더로 복사 중")
+    dst = config.EXPORT_ROOT / folder_name(d)
+    if dst.exists():
+        shutil.rmtree(dst)
+    dst.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copytree(out, dst)
+    result["icloud"] = str(dst)
     return result

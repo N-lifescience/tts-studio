@@ -35,7 +35,16 @@ export interface LinePatch {
 }
 
 export const api = {
-  status: () => req<QueueState & { export_root: string; icloud: boolean; peak_memory_gb: number | null }>('GET', '/api/status'),
+  status: () =>
+    req<
+      QueueState & {
+        export_root: string
+        icloud: boolean
+        peak_memory_gb: number | null
+        ffmpeg: boolean
+        engine: { backend: string; device: string; tts_model: string; asr_model: string }
+      }
+    >('GET', '/api/status'),
   projects: () => req<ProjectSummary[]>('GET', '/api/projects'),
   createProject: (title: string, script = '') => req<Project>('POST', '/api/projects', { title, script }),
   project: (id: string) => req<Project>('GET', P(id)),

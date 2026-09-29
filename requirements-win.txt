@@ -1,0 +1,16 @@
+# 윈도우·리눅스용 (PyTorch 엔진). setup.ps1 이 설치한다.
+# torch 는 setup.ps1 이 먼저 깐다 (NVIDIA 그래픽카드가 있으면 CUDA 판, 없으면 CPU 판).
+# 아래 버전은 PyTorch 엔진으로 끝까지 돌려 본 조합이다.
+qwen-tts==0.1.1
+transformers==4.57.3
+accelerate==1.12.0
+faster-whisper==1.2.1
+fastapi==0.141.1
+uvicorn[standard]==0.54.0
+python-multipart==0.0.32
+pillow==12.3.0
+numpy==2.5.3
+scipy==1.18.1
+soundfile==0.14.0
+pytest==9.1.1
+httpx==0.28.1

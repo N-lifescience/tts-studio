@@ -53,6 +53,7 @@ def env(tmp_path, monkeypatch):
         return heard.get(t, t)
 
     monkeypatch.setattr(engine, "generate", fake_generate_wrap)
+    monkeypatch.setattr(engine, "max_attempts", lambda: config.MAX_AUTO_ATTEMPTS)
     monkeypatch.setattr(engine, "transcribe", fake_transcribe)
     return {"heard": heard, "tmp": tmp_path, "cut": cut}
 
@@ -307,8 +308,22 @@ def test_api_generate_all_redo(client, monkeypatch):
     ("그렇구나…", "그렇구나..."),
 ])
 def test_tts_text_adds_tail(text, sent):
-    """문장 끝이 끊기지 않게 모델에만 말줄임표를 붙인다."""
-    assert engine.tts_text(text) == sent
+    """문장 끝이 끊기지 않게 모델에만 말줄임표를 붙인다 (맥 엔진)."""
+    assert engine.tts_text(text, "ellipsis") == sent
+
+
+@pytest.mark.parametrize("text,sent", [
+    ("몸을 빠르게 움직이는 뒤쪽 다리", "몸을 빠르게 움직이는 뒤쪽 다리."),
+    ("먼저 몸부터 보죠.", "먼저 몸부터 보죠."),
+    ("정말 그럴까요?", "정말 그럴까요?"),
+])
+def test_tts_text_period_style(text, sent):
+    """PyTorch 엔진은 마침표만 채운다."""
+    assert engine.tts_text(text, "period") == sent
+
+
+def test_max_frames_scales_with_text():
+    assert engine.max_frames("가" * 10) < engine.max_frames("가" * 100) < 2048
 
 
 def test_ending_decay_detects_cut():

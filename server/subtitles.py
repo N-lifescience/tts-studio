@@ -27,6 +27,8 @@ def make_srt(cues):
 
 
 def _font(size):
+    if config.FONT_PATH is None:  # 한글 글꼴을 못 찾으면 Pillow 기본 글꼴 (한글은 깨질 수 있다)
+        return ImageFont.load_default(size)
     return ImageFont.truetype(config.FONT_PATH, size, index=config.FONT_INDEX_BOLD)
 
 

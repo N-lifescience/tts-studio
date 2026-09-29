@@ -20,7 +20,6 @@ os.environ.setdefault("HF_HOME", str(ROOT / ".hf"))  # 모델은 SSD 에 둔다
 
 from server.textsplit import split_script  # noqa: E402  웹 작업실과 같은 규칙으로 나눈다
 
-DEFAULT_MODEL = "mlx-community/Qwen3-TTS-12Hz-1.7B-Base-bf16"
 SR = 24000
 
 
@@ -36,7 +35,7 @@ def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("script", type=Path, help="대본 txt")
     ap.add_argument("--voice", default="myvoice", help="voices/<이름>.wav + .txt (기본 myvoice)")
-    ap.add_argument("--model", default=DEFAULT_MODEL)
+    ap.add_argument("--model", default=None, help="모델 (기본: 맥 1.7B, 윈도우 GPU 1.7B / CPU 0.6B)")
     ap.add_argument("--redo", type=int, nargs="*", default=[], help="다시 뽑을 문장 번호")
     ap.add_argument("--list", action="store_true", help="문장 번호만 출력")
     ap.add_argument("--sentence-gap", type=float, default=0.3, help="문장 사이 쉼(초)")
@@ -63,7 +62,8 @@ def main():
     takes_file = out_dir / "takes.json"
     takes = json.loads(takes_file.read_text()) if takes_file.exists() else {}
 
-    os.environ["STUDIO_TTS_MODEL"] = args.model
+    if args.model:
+        os.environ["STUDIO_TTS_MODEL"] = args.model
     import numpy as np
     import soundfile as sf
 
@@ -75,7 +75,7 @@ def main():
     for i, (pi, text) in enumerate(chunks, 1):
         # eos 값이 들어가 있어서, 문장 끝 잘림을 고치기 전에 만든 조각은 자동으로 다시 만든다
         key = hashlib.sha1(
-            f"{args.model}|{args.voice}|{args.temperature}|{engine.TAIL_VERSION}|{text}".encode()
+            f"{engine.describe()['tts_model']}|{args.voice}|{args.temperature}|{engine.TAIL_VERSION}|{text}".encode()
         ).hexdigest()[:10]
         if i in args.redo:
             takes[key] = takes.get(key, 0) + 1
@@ -84,7 +84,7 @@ def main():
 
         if not path.exists():
             if model is None:
-                print(f"모델 불러오는 중: {args.model}")
+                print(f"모델 불러오는 중: {engine.describe()['tts_model']}")
                 model = engine.tts()
             print(f"[{i}/{len(chunks)}] {text}")
             audio = engine.generate(text, voice_wav, ref_text, args.temperature, int(key, 16) % (2**31) + take)

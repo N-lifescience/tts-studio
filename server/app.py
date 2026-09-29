@@ -8,6 +8,7 @@ import json
 import os
 import shutil
 import subprocess
+import sys
 import tempfile
 from contextlib import asynccontextmanager
 from io import BytesIO
@@ -82,7 +83,9 @@ def status():
     return {
         **worker.queue_state(),
         "export_root": str(config.EXPORT_ROOT),
-        "icloud": config.EXPORT_ROOT.parent.exists(),
+        "icloud": config.EXPORT_IS_ICLOUD,
+        "engine": engine.describe(),
+        "ffmpeg": shutil.which("ffmpeg") is not None,
         "peak_memory_gb": engine.peak_memory_gb() if engine.status["tts"] == "ready" else None,
     }
 
@@ -341,7 +344,10 @@ def reveal(pid: str, where: str = "icloud"):
     target = (config.EXPORT_ROOT / exporter.folder_name(d)) if where == "icloud" else store._dir(pid) / "export"
     if not target.exists():
         raise store.NotFound(str(target))
-    subprocess.run(["open", str(target)], check=False)
+    if sys.platform == "win32":
+        os.startfile(str(target))  # 탐색기
+    else:
+        subprocess.run(["open" if sys.platform == "darwin" else "xdg-open", str(target)], check=False)
     return {"ok": True}
 
 
