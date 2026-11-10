@@ -48,7 +48,7 @@ lines/03_00m07.4s_몸을빠르게.wav  줄별 조각 (파일 이름 = 시작 시
 - **프론트**: Vite + React + TypeScript. `innerHTML` 안 씀. 녹음은 브라우저 MediaRecorder.
 - **저장**: DB 없이 파일로. `projects/<에피소드>/project.json` + `takes/*.wav`. 목소리는 `voices/`.
   전부 SSD, GitHub 금지(.gitignore).
-- **보안**: `127.0.0.1` 바인딩, CSP·`X-Frame-Options` 헤더, 업로드 파일 형식·크기 제한.
+- **보안**: `127.0.0.1` 바인딩, Host/Origin 검사(DNS 리바인딩·CSRF), CSP·`X-Frame-Options` 헤더, `innerHTML` 미사용, 업로드 파일 형식·크기 제한, 경로 탈출 차단(테스트 있음).
 - **자막 영상**: 설치된 ffmpeg에 자막 필터(libass)가 없음 → Pillow로 줄별 자막 PNG를 그리고
   ffmpeg로 길이 맞춰 이어 붙임. 글꼴 Apple SD Gothic Neo, 테두리 넣어 크로마키 번짐 방지.
 
