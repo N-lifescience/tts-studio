@@ -110,7 +110,12 @@ Claude(데스크톱 앱 · Claude Code)에 구글 드라이브를 연결해 두�
 
 ## 내보내기 결과
 
-`iCloud Drive/AI 공유함/TTS/<에피소드 제목>/` (아이패드 파일 앱에 자동으로 뜬다) + SSD 사본 `projects/<id>/export/`
+`iCloud Drive/TTS/<에피소드 제목>/` (아이패드 파일 앱에 자동으로 뜬다) + SSD 사본 `projects/<id>/export/`
+
+- iCloud 가 없으면 `문서/TTS 작업실 내보내기/` 에 생긴다.
+- 다른 폴더로 내보내려면 이 폴더의 `studio-settings.json`(저장소에 안 올라가는 이 컴퓨터만의 설정, 없으면 만든다)에
+  `"export_dir": "~/Library/Mobile Documents/com~apple~CloudDocs/원하는 폴더/TTS"` 를 넣고 앱을 다시 켠다.
+  환경 변수 `STUDIO_EXPORT_DIR` 이 있으면 그것이 먼저다.
 
 | 파일 | 루마퓨전에서 |
 |---|---|

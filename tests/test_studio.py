@@ -338,6 +338,38 @@ def test_api_voice_upload(client, env, monkeypatch):
     assert client.delete("/api/voices/차분").status_code == 200
 
 
+def test_api_voice_reupload_keeps_family_style(client, env, monkeypatch):
+    monkeypatch.setattr(engine, "transcribe", lambda path: "받아쓴 대본")
+    (config.VOICES_DIR / "myvoice.json").write_text(
+        json.dumps({"family": "엔", "style": "차분하게", "registered_at": "2026-01-01T00:00:00"}), encoding="utf-8")
+    src = env["tmp"] / "rec.wav"
+    sf.write(src, 0.3 * np.sin(np.linspace(0, 2000, config.SR * 8)).astype(np.float32), config.SR)
+    with open(src, "rb") as f:
+        r = client.post("/api/voices", data={"name": "myvoice", "overwrite": "true"},
+                        files={"file": ("rec.wav", f, "audio/wav")})
+    assert r.status_code == 200, r.text
+    meta = json.loads((config.VOICES_DIR / "myvoice.json").read_text(encoding="utf-8"))
+    assert meta["family"] == "엔" and meta["style"] == "차분하게"
+    assert meta["registered_at"] > "2026-01-01T00:00:00"
+
+
+def test_export_root_order(tmp_path, monkeypatch):
+    home = tmp_path / "home"
+    icloud = home / "Library" / "Mobile Documents" / "com~apple~CloudDocs"
+    icloud.mkdir(parents=True)
+    monkeypatch.setenv("HOME", str(home))  # Path.home() 와 "~" 가 모두 여기를 본다
+    monkeypatch.delenv("STUDIO_EXPORT_DIR", raising=False)
+    monkeypatch.setattr(config, "SETTINGS_FILE", tmp_path / "studio-settings.json")
+    assert config._export_root() == icloud / "TTS"  # 공개판 기본값
+    config.SETTINGS_FILE.write_text(json.dumps({"inbox": {}, "export_dir": "~/내보내기/TTS"}), encoding="utf-8")
+    assert config._export_root() == home / "내보내기" / "TTS"  # 이 컴퓨터 설정
+    monkeypatch.setenv("STUDIO_EXPORT_DIR", str(tmp_path / "env"))
+    assert config._export_root() == tmp_path / "env"  # 환경 변수가 먼저
+    config.SETTINGS_FILE.write_text("{망가진 json", encoding="utf-8")
+    monkeypatch.delenv("STUDIO_EXPORT_DIR")
+    assert config._export_root() == icloud / "TTS"
+
+
 def test_project_delete_can_restore_audio_and_settings(client, env):
     p = client.post("/api/projects", json={"title": "restore-check", "script": SCRIPT}).json()
     original = store.load(p["id"])

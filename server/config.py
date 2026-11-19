@@ -1,5 +1,6 @@
 """경로·기본값. 전부 이 폴더(SSD) 안에 둔다."""
 
+import json
 import os
 from pathlib import Path
 
@@ -10,14 +11,29 @@ PROJECTS_DIR = Path(os.environ.get("STUDIO_PROJECTS_DIR", ROOT / "projects"))
 VOICES_DIR = Path(os.environ.get("STUDIO_VOICES_DIR", ROOT / "voices"))
 WEB_DIST = ROOT / "web" / "dist"
 
-# 아이패드(루마퓨전)로 넘기는 곳: iCloud Drive (맥·윈도우용 iCloud) → 없으면 문서 폴더.
+SETTINGS_FILE = ROOT / "studio-settings.json"  # 이 컴퓨터만의 설정 (저장소에 안 올림)
+
+
+def _local_export_dir():
+    """studio-settings.json 의 "export_dir" (예: "~/Library/Mobile Documents/com~apple~CloudDocs/AI 공유함/TTS")."""
+    try:
+        v = json.loads(SETTINGS_FILE.read_text(encoding="utf-8")).get("export_dir")
+    except (OSError, ValueError, AttributeError):
+        return None
+    return Path(v).expanduser() if isinstance(v, str) and v.strip() else None
+
+
+# 아이패드(루마퓨전)로 넘기는 곳: 환경 변수 → 이 컴퓨터 설정 → iCloud Drive/TTS → 없으면 문서 폴더.
 def _export_root():
     if os.environ.get("STUDIO_EXPORT_DIR"):
         return Path(os.environ["STUDIO_EXPORT_DIR"])
+    local = _local_export_dir()
+    if local:
+        return local
     home = Path.home()
     for icloud in (home / "Library" / "Mobile Documents" / "com~apple~CloudDocs", home / "iCloudDrive"):
         if icloud.exists():
-            return icloud / "AI 공유함" / "TTS"  # 2026-10-31 아이클라우드 공유 폴더를 'AI 공유함' 하나로 합침
+            return icloud / "TTS"
     return home / "Documents" / "TTS 작업실 내보내기"
 
 

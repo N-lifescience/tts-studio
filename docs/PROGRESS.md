@@ -49,4 +49,7 @@
 ## 2026-11-19 깃허브 정리
 - 10-11 작업 올림: 에피소드 삭제 확인 창·되돌리기(projects/.trash), 사이드바 폭 조절, 목소리·말투 두 칸 고르기(voices/<이름>.json 의 family·style), 생성 결과 재현(seed 고정, 테이크에 seed·temperature·model·샘플 지문 기록).
 - 목소리 샘플을 다시 등록하면 그 전에 만든 테이크는 쓰지 않음(샘플 지문 비교).
-- 내보내기 위치 iCloud `AI 공유함/TTS/`(10-31), README 에 「쓰는 모델」 절(Qwen3-TTS·Qwen3-ASR Apache 2.0, faster-whisper MIT).
+- README 에 「쓰는 모델」 절(Qwen3-TTS·Qwen3-ASR Apache 2.0, faster-whisper MIT).
+- 내보내기 기본 폴더는 공개판에서 다시 `iCloud Drive/TTS/`. 엔의 맥만 `studio-settings.json` 의 `export_dir` 로
+  `AI 공유함/TTS/` 를 쓴다(10-31에 코드 기본값을 바꿨던 것을 이 컴퓨터 설정으로 옮김).
+- 목소리를 다시 등록해도 `voices/<이름>.json` 의 family·style 이 남게 고침.

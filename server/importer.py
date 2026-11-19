@@ -18,7 +18,7 @@ from . import config, store
 
 EXTS = (".docx", ".pdf", ".txt", ".md")
 MAX_BYTES = 30 * 1024 * 1024
-SETTINGS_FILE = config.ROOT / "studio-settings.json"  # 이 컴퓨터만의 설정 (저장소에 안 올림)
+SETTINGS_FILE = config.SETTINGS_FILE
 _lock = threading.RLock()
 
 

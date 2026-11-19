@@ -508,7 +508,14 @@ def add_voice(name: str = Form(...), file: UploadFile = File(...), overwrite: bo
         config.VOICES_DIR.mkdir(parents=True, exist_ok=True)
         shutil.move(str(new_wav), wav)
     txt.write_text(heard + "\n", encoding="utf-8")
-    wav.with_suffix(".json").write_text(json.dumps({"registered_at": datetime.now().isoformat()}), encoding="utf-8")
+    meta_path = wav.with_suffix(".json")
+    try:  # 다시 등록해도 묶음 정보(family·style 등)는 남긴다
+        meta = json.loads(meta_path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        meta = {}
+    meta = meta if isinstance(meta, dict) else {}
+    meta["registered_at"] = datetime.now().isoformat()
+    meta_path.write_text(json.dumps(meta, ensure_ascii=False), encoding="utf-8")
     return {"name": name, "text": heard, "duration": round(duration, 2)}
 
 
