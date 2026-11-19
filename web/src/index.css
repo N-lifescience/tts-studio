@@ -63,6 +63,8 @@ body {
   color: var(--text);
   font: 15px/1.55 -apple-system, BlinkMacSystemFont, 'Apple SD Gothic Neo', 'Pretendard', sans-serif;
   -webkit-font-smoothing: antialiased;
+  word-break: keep-all;
+  overflow-wrap: anywhere;
 }
 
 button,
@@ -78,6 +80,15 @@ h2 {
   margin: 0;
   font-weight: 650;
   letter-spacing: -0.01em;
+}
+
+h1,
+h2 {
+  text-wrap: balance;
+}
+
+p {
+  text-wrap: pretty;
 }
 
 h2 {
@@ -122,18 +133,51 @@ code {
 
 .app {
   display: grid;
-  grid-template-columns: 250px 1fr;
+  grid-template-columns: minmax(0, var(--sidebar-width, 300px)) 8px minmax(0, 1fr);
   height: 100%;
 }
 
 .sidebar {
   background: var(--surface);
-  border-right: 1px solid var(--line);
   display: flex;
   flex-direction: column;
   padding: 18px 12px 12px;
   gap: 22px;
   overflow-y: auto;
+  min-width: 0;
+}
+
+.sidebar-resize {
+  position: relative;
+  background: var(--surface);
+  cursor: col-resize;
+  touch-action: none;
+  outline-offset: -2px;
+}
+.sidebar-resize::before {
+  content: '';
+  position: absolute;
+  inset: 0 3px;
+  background: var(--line);
+}
+.sidebar-resize::after {
+  content: '';
+  position: absolute;
+  top: calc(50% - 18px);
+  left: 2px;
+  width: 4px;
+  height: 36px;
+  border-radius: 4px;
+  background: var(--muted);
+}
+.sidebar-resize:hover::before,
+.sidebar-resize:focus-visible::before,
+.sidebar-resize.dragging::before {
+  background: var(--accent);
+}
+.app:has(.sidebar-resize.dragging) {
+  cursor: col-resize;
+  user-select: none;
 }
 
 .brand {
@@ -215,6 +259,7 @@ code {
   border-radius: 8px;
   cursor: pointer;
   text-align: left;
+  min-height: 44px;
 }
 .side-row.active .side-item {
   color: var(--accent);
@@ -222,47 +267,41 @@ code {
 }
 .side-title {
   flex: 1;
+  min-width: 0;
   overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  line-height: 1.45;
 }
 .side-meta {
+  flex: none;
+  white-space: nowrap;
   font-size: 12px;
   color: var(--muted);
   display: flex;
   align-items: center;
   gap: 6px;
 }
-/* 삭제 버튼: 마우스를 올리거나 키보드로 들어오면 보인다 */
+/* 삭제 버튼은 항상 표시하고 제목과 별도의 터치 영역을 확보한다. */
 .side-del {
   flex: none;
   display: grid;
   place-items: center;
-  width: 28px;
-  height: 28px;
+  width: 44px;
+  height: 44px;
   margin-right: 4px;
   border: 0;
   border-radius: 6px;
   background: none;
   color: var(--muted);
   cursor: pointer;
-  opacity: 0;
-}
-.side-row:hover .side-del,
-.side-row:focus-within .side-del {
-  opacity: 1;
 }
 .side-del:hover,
 .side-del:focus-visible {
   color: var(--bad);
   background: var(--bad-soft);
 }
-@media (hover: none) {
-  .side-del {
-    opacity: 1;
-  }
-}
-
 .side-add {
   width: 100%;
   margin-top: 2px;
@@ -311,6 +350,7 @@ code {
 }
 
 .main {
+  min-width: 0;
   overflow-y: auto;
   padding: 28px 36px 80px;
 }
@@ -443,7 +483,7 @@ input[type='range'] {
 
 .grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(min(220px, 100%), 1fr));
   gap: 14px 18px;
 }
 .grid label {
@@ -462,6 +502,23 @@ input[type='range'] {
 .grid small {
   font-size: 12px;
 }
+
+.voice-picker {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  min-width: 0;
+}
+.voice-picker label { min-width: 0; }
+.voice-picker select { min-width: 80px; max-width: 100%; min-height: 44px; }
+.voice-setting { display: grid; align-content: start; gap: 8px; min-width: 0; }
+.voice-setting > button { justify-self: start; }
+.voice-setting small { color: var(--muted); font-size: 13px; line-height: 1.65; }
+.quality-note { font-size: 13px; line-height: 1.7; }
+.generation-values { font-size: 12px; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.voice-source { font-size: 13px; margin: 10px 0; }
+.voice > .row { flex-wrap: wrap; }
+.voice h2 { min-width: 0; }
 
 .pill {
   font-size: 12px;
@@ -512,18 +569,59 @@ input[type='range'] {
 
 .project-head {
   display: flex;
-  align-items: baseline;
+  align-items: center;
   gap: 16px;
   flex-wrap: wrap;
 }
 .title {
+  flex: 1;
+  min-width: 0;
   font-size: 26px;
   cursor: text;
 }
 .title-input {
   font-size: 24px;
   font-weight: 650;
-  min-width: 320px;
+  flex: 1;
+  min-width: min(240px, 100%);
+  max-width: 100%;
+}
+.project-delete {
+  min-height: 44px;
+}
+
+.delete-dialog {
+  width: min(440px, calc(100% - 32px));
+  padding: 24px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  color: var(--text);
+  background: var(--surface);
+  box-shadow: var(--shadow);
+}
+.delete-dialog::backdrop {
+  background: rgb(0 0 0 / 0.5);
+}
+.delete-project-name {
+  font-weight: 650;
+}
+.dialog-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  justify-content: flex-end;
+  margin-top: 24px;
+}
+.dialog-actions .btn {
+  min-width: 80px;
+  min-height: 44px;
+}
+.toast {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+  max-width: calc(100% - 32px);
 }
 .head-stats {
   display: flex;
@@ -537,6 +635,7 @@ input[type='range'] {
   display: flex;
   gap: 4px;
   border-bottom: 1px solid var(--line);
+  flex-wrap: wrap;
 }
 .tab {
   border: 0;
@@ -912,14 +1011,21 @@ button.pill {
 
 @media (max-width: 800px) {
   .app {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto 1fr;
+    height: auto;
+    min-height: 100%;
+  }
+  .sidebar-resize {
+    display: none;
   }
   .sidebar {
-    border-right: 0;
     border-bottom: 1px solid var(--line);
+    overflow: visible;
   }
   .main {
     padding: 20px 16px 60px;
+    overflow: visible;
   }
   .sub-grid {
     grid-template-columns: 1fr;

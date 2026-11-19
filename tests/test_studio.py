@@ -1,6 +1,7 @@
 """모델 없이 도는 테스트. 생성·받아쓰기는 가짜로 바꿔 끼운다."""
 
 import os
+import json
 import time
 from pathlib import Path
 
@@ -166,6 +167,74 @@ def test_manual_redo_adds_take_and_not_regenerated_when_done(env):
     assert len(d["lines"][0]["takes"]) == 2 and d["lines"][0]["chosen"] == d["lines"][0]["takes"][-1]["id"]
 
 
+def test_fixed_seed_repeats_and_records_generation_inputs(env, monkeypatch):
+    original = engine.generate
+    seeds = []
+    def capture(text, wav, transcript, temperature, seed):
+        seeds.append(seed)
+        return original(text, wav, transcript, temperature, seed)
+    monkeypatch.setattr(engine, "generate", capture)
+    d = store.create_project("seed", "테스트 문장입니다.")
+    d["settings"].update(seed=42, temperature=.6)
+    store.save(d)
+    lid = d["lines"][0]["id"]
+    run_queue(d["id"], [lid])
+    run_queue(d["id"], [lid], manual=True)
+    assert seeds == [42, 42]
+    for t in store.load(d["id"])["lines"][0]["takes"]:
+        assert t["seed"] == 42 and t["temperature"] == .6
+        assert t["reference_signature"] == store.voice_signature("myvoice")
+        assert t["model"] == engine.describe()["tts_model"]
+
+
+def test_fixed_seed_retry_changes_seed_and_wraps(env):
+    d = store.create_project("retry-seed", "테스트 문장입니다.")
+    d["settings"]["seed"] = 2147483647
+    store.save(d)
+    env["heard"][d["lines"][0]["text"]] = "다른 내용"
+    run_queue(d["id"], [d["lines"][0]["id"]])
+    assert [t["seed"] for t in store.load(d["id"])["lines"][0]["takes"]] == [2147483647, 0, 1]
+
+
+def test_unfixed_seed_is_recorded_for_each_generation(env, monkeypatch):
+    values = iter([123, 456])
+    monkeypatch.setattr(worker.secrets, "randbits", lambda _: next(values))
+    d = store.create_project("random-seed", "테스트 문장입니다.")
+    lid = d["lines"][0]["id"]
+    run_queue(d["id"], [lid])
+    run_queue(d["id"], [lid], manual=True)
+    assert [t["seed"] for t in store.load(d["id"])["lines"][0]["takes"]] == [123, 456]
+
+
+@pytest.mark.parametrize("change", ["audio", "transcript"])
+def test_replacing_reference_invalidates_take_without_deleting_it(env, change):
+    d = store.create_project("revision", "테스트 문장입니다.")
+    lid = d["lines"][0]["id"]
+    run_queue(d["id"], [lid])
+    d = store.load(d["id"])
+    take = d["lines"][0]["takes"][0]
+    if change == "audio":
+        wav = config.VOICES_DIR / "myvoice.wav"
+        a, sr = sf.read(wav)
+        sf.write(wav, a * .5, sr)
+    else:
+        (config.VOICES_DIR / "myvoice.txt").write_text("바뀐 대본")
+    assert not store.valid_takes(d, d["lines"][0])
+    assert store.take_path(d, take).exists()
+    assert store.line_view(d, d["lines"][0])["chosen"] is None
+
+
+def test_legacy_take_valid_until_reference_reregistration(env):
+    d = store.create_project("legacy", "테스트 문장입니다.")
+    lid = d["lines"][0]["id"]
+    run_queue(d["id"], [lid])
+    d = store.load(d["id"])
+    del d["lines"][0]["takes"][0]["reference_signature"]
+    assert store.valid_takes(d, d["lines"][0])
+    (config.VOICES_DIR / "myvoice.json").write_text(json.dumps({"registered_at": "2999-01-01T00:00:00"}))
+    assert not store.valid_takes(d, d["lines"][0])
+
+
 def test_text_edit_invalidates_take(env):
     d = store.create_project("ep01", SCRIPT)
     lid = d["lines"][0]["id"]
@@ -267,6 +336,30 @@ def test_api_voice_upload(client, env, monkeypatch):
     client.post("/api/projects", json={"title": "ep", "script": "가."})
     assert client.delete("/api/voices/myvoice").status_code == 400  # 쓰는 에피소드 있음
     assert client.delete("/api/voices/차분").status_code == 200
+
+
+def test_project_delete_can_restore_audio_and_settings(client, env):
+    p = client.post("/api/projects", json={"title": "restore-check", "script": SCRIPT}).json()
+    original = store.load(p["id"])
+    original["settings"]["temperature"] = 0.55
+    store.save(original)
+    take = store._dir(p["id"]) / "takes" / "saved.wav"
+    take.write_bytes(b"saved-audio")
+
+    deleted = client.delete(f"/api/projects/{p['id']}")
+    assert deleted.status_code == 200
+    trash_id = deleted.json()["trash_id"]
+    assert client.get(f"/api/projects/{p['id']}").status_code == 404
+    assert all(project["id"] != p["id"] for project in client.get("/api/projects").json())
+
+    restored = client.post(f"/api/trash/{trash_id}/restore")
+    assert restored.status_code == 200
+    assert restored.json()["settings"]["temperature"] == 0.55
+    assert restored.json()["script"] == p["script"]
+    assert take.read_bytes() == b"saved-audio"
+    assert client.post(f"/api/trash/{trash_id}/restore").status_code == 404
+    with pytest.raises(store.NotFound):
+        store.restore_project("../escape")
 
 
 def test_subtitle_balanced_wrap_evens_lines():
@@ -542,3 +635,49 @@ def test_split_keeps_ellipsis_inside_line():
         "카직스는 보통… 메뚜기라고 불리거든요.",
         "아니면… 바퀴벌레일까요?",
     ]
+
+
+@pytest.mark.parametrize("seed", [-1, 2147483648, True, 3.5, "42"])
+def test_api_rejects_invalid_seed(client, seed):
+    p = client.post("/api/projects", json={"title": "seed"}).json()
+    assert client.patch(f"/api/projects/{p['id']}", json={"settings": {"seed": seed}}).status_code == 400
+
+
+def test_api_accepts_and_disables_fixed_seed(client):
+    p = client.post("/api/projects", json={"title": "seed"}).json()
+    assert p["settings"]["seed"] is None
+    for seed in (0, 2147483647, None):
+        r = client.patch(f"/api/projects/{p['id']}", json={"settings": {"seed": seed}})
+        assert r.status_code == 200 and r.json()["settings"]["seed"] == seed
+
+
+def test_voice_metadata_is_optional_and_whitelisted(client):
+    initial = client.get("/api/voices").json()[0]
+    assert initial["name"] == "myvoice" and "family" not in initial
+    sidecar = config.VOICES_DIR / "myvoice.json"
+    sidecar.write_text(json.dumps({"family": "서현", "style": "기본", "provider": "Typecast",
+                                   "private_test_field": "not-public"}), encoding="utf-8")
+    v = client.get("/api/voices").json()[0]
+    assert v["family"] == "서현" and v["style"] == "기본"
+    assert "private_test_field" not in v
+    sidecar.write_text("invalid json")
+    assert client.get("/api/voices").status_code == 200
+    sidecar.write_text("[]")
+    assert client.get("/api/voices").status_code == 200
+
+
+def test_voice_delete_removes_sidecar(client):
+    sidecar = config.VOICES_DIR / "myvoice.json"
+    sidecar.write_text('{"family": "Test"}')
+    assert client.delete("/api/voices/myvoice").status_code == 200
+    assert not sidecar.exists()
+
+
+def test_new_project_prefers_neutral_style_when_default_missing(env):
+    for name, style in (("a_fast", "빠르게"), ("z_neutral", "기본")):
+        src = config.VOICES_DIR / "myvoice.wav"
+        wav = config.VOICES_DIR / f"{name}.wav"
+        wav.write_bytes(src.read_bytes())
+        wav.with_suffix(".json").write_text(json.dumps({"style": style}))
+    (config.VOICES_DIR / "myvoice.wav").unlink()
+    assert store.create_project("neutral")["settings"]["voice"] == "z_neutral"

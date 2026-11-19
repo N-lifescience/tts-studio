@@ -112,7 +112,7 @@ def import_voice(src: Path, dst_wav: Path):
     tmp.unlink()
     a = trim_silence(a, thresh=0.02, pad_sec=0.1)[: config.SR * config.MAX_VOICE_SECONDS]
     if len(a) < config.SR * 3:
-        raise ValueError("목소리 샘플이 3초보다 짧습니다 (10~30초 권장)")
+        raise ValueError("목소리 샘플이 3초보다 짧습니다 (5~15초 권장)")
     peak = float(np.max(np.abs(a)))
     if peak > 0:
         a = a * (0.9 / peak)

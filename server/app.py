@@ -11,6 +11,7 @@ import subprocess
 import sys
 import tempfile
 from contextlib import asynccontextmanager
+from datetime import datetime
 from io import BytesIO
 from pathlib import Path
 
@@ -151,7 +152,11 @@ _SUB_TYPES = {"font_size": int, "position": str, "margin": int, "color": str, "o
 
 def _clean_settings(cur, patch):
     for k, v in patch.items():
-        if k == "subtitle" and isinstance(v, dict):
+        if k == "seed":
+            if v is not None and (type(v) is not int or not 0 <= v <= 2147483647):
+                raise store.BadRequest("설정 seed 값이 이상합니다")
+            cur[k] = v
+        elif k == "subtitle" and isinstance(v, dict):
             for sk, sv in v.items():
                 if sk in _SUB_TYPES:
                     try:
@@ -208,8 +213,12 @@ def patch_project(pid: str, body: ProjectPatch):
 @app.delete("/api/projects/{pid}")
 def delete_project(pid: str):
     worker.cancel(pid)
-    store.delete_project(pid)
-    return {"ok": True}
+    return {"ok": True, "trash_id": store.delete_project(pid)}
+
+
+@app.post("/api/trash/{trash_id}/restore")
+def restore_project(trash_id: str):
+    return store.project_view(store.restore_project(trash_id))
 
 
 @app.put("/api/projects/{pid}/script")
@@ -499,6 +508,7 @@ def add_voice(name: str = Form(...), file: UploadFile = File(...), overwrite: bo
         config.VOICES_DIR.mkdir(parents=True, exist_ok=True)
         shutil.move(str(new_wav), wav)
     txt.write_text(heard + "\n", encoding="utf-8")
+    wav.with_suffix(".json").write_text(json.dumps({"registered_at": datetime.now().isoformat()}), encoding="utf-8")
     return {"name": name, "text": heard, "duration": round(duration, 2)}
 
 
@@ -521,6 +531,7 @@ def delete_voice(name: str):
         raise store.BadRequest(f"이 목소리를 쓰는 에피소드가 있어 지울 수 없어요: {', '.join(used)} — 그 에피소드의 목소리를 먼저 바꾸세요")
     wav.unlink()
     txt.unlink(missing_ok=True)
+    wav.with_suffix(".json").unlink(missing_ok=True)
     return {"ok": True}
 
 

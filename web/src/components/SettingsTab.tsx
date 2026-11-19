@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { api, urls } from '../api'
 import type { Settings, SubtitleSettings } from '../types'
 import type { ProjectProps } from './ProjectView'
+import { VoicePicker } from './VoicePicker'
 
 export function SettingsTab({ project, voices, setProject, onGoVoices, fail, notify }: ProjectProps) {
   const [s, setS] = useState<Settings>(project.settings)
@@ -36,27 +37,32 @@ export function SettingsTab({ project, voices, setProject, onGoVoices, fail, not
       <section className="card">
         <h2>목소리</h2>
         <div className="grid">
-          <label>
-            기본 목소리
-            <span className="row gap-s">
-              <select value={s.voice} onChange={(e) => set('voice', e.target.value)}>
-                {voices.map((v) => (
-                  <option key={v.name} value={v.name}>
-                    {v.name}
-                  </option>
-                ))}
-              </select>
+          <div className="voice-setting">
+            <VoicePicker voices={voices} value={s.voice} onChange={(name) => set('voice', name)} />
+            <small>말투 샘플의 억양을 참고합니다. 감정의 강도는 생성할 때마다 달라질 수 있어요.</small>
               <button className="btn ghost sm" type="button" onClick={onGoVoices}>
                 목소리 관리
               </button>
-            </span>
             {voiceChanged && <small className="warn-text">바꾸면 목소리를 따로 정하지 않은 줄은 모두 새로 만들어야 합니다.</small>}
-          </label>
+          </div>
           <label>
             표현 다양성 <b>{s.temperature.toFixed(2)}</b>
             <input type="range" min={0.3} max={1.1} step={0.05} value={s.temperature} onChange={(e) => set('temperature', Number(e.target.value))} />
-            <small>낮으면 차분하고 안정적, 높으면 억양이 다양하지만 가끔 무너집니다. (새로 만드는 줄부터 적용)</small>
+            <small>값이 낮으면 표현 변화가 줄고 높으면 억양이 다양해질 수 있어요. 새로 생성하는 줄부터 적용됩니다.</small>
           </label>
+          <label>
+            생성 결과 재현
+            <select value={s.seed === null ? 'off' : 'on'} onChange={(e) => set('seed', e.target.value === 'on' ? 73129 : null)}>
+              <option value="off">사용 안 함</option>
+              <option value="on">같은 조건으로 생성</option>
+            </select>
+            <small>같은 대본과 목소리로 생성값을 재사용합니다. 음질을 보장하는 기능은 아닙니다.</small>
+          </label>
+          {s.seed !== null && <label>
+            기준 번호
+            <input type="number" min={0} max={2147483647} step={1} value={s.seed}
+              onChange={(e) => set('seed', Math.max(0, Math.min(2147483647, Math.trunc(Number(e.target.value)))))} />
+          </label>}
           <label>
             문장 사이 쉼 (초)
             <input type="number" min={0} max={5} step={0.1} value={s.sentence_gap} onChange={(e) => set('sentence_gap', Number(e.target.value))} />

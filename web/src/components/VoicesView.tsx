@@ -27,8 +27,7 @@ export function VoicesView({ voices, focus, reload, onDelete, notify, fail }: Pr
         <h1 className="title">목소리 관리</h1>
       </header>
       <p className="muted lead">
-        목소리 샘플 = 10~30초 녹음 + 그 녹음의 <b>정확한 대본</b>. 결과물은 샘플의 말투·속도·감정을 그대로 따라갑니다. 톤별로 따로 녹음해 두고 줄마다 골라
-        쓰세요.
+        말투 샘플의 억양을 참고합니다. 감정의 강도는 생성할 때마다 달라질 수 있어요.
       </p>
 
       <AddVoice
@@ -91,7 +90,7 @@ function VoiceCard({
   return (
     <section ref={ref} className={`card voice ${fresh ? 'fresh' : ''} ${focused ? 'focused' : ''}`}>
       <div className="row">
-        <button className="play" onClick={() => player.play(key, urls.voice(voice.name, voice.updated))} aria-label={`${voice.name} 듣기`}>
+        <button className="play" onClick={() => player.play(key, urls.voice(voice.name, voice.updated))} aria-label={`${voice.name} 원본 샘플 듣기`}>
           {ps.key === key ? '■' : '▶'}
         </button>
         <h2>{voice.name}</h2>
@@ -101,6 +100,7 @@ function VoiceCard({
           삭제
         </button>
       </div>
+      {voice.provider && <p className="muted voice-source">출처 {voice.provider} · {voice.family} · {voice.style} · 원본 샘플</p>}
       {fresh && <p className="warn-text small">자동 받아쓰기 결과입니다. 들어보면서 실제로 말한 그대로 고치세요. 틀리면 복제 품질이 떨어집니다.</p>}
       <textarea className="voice-text" value={text} rows={3} maxLength={2000} onChange={(e) => setText(e.target.value)} />
       {dirty && (
@@ -174,7 +174,7 @@ function AddVoice({ existing, onAdded, fail }: { existing: string[]; onAdded: (n
         </label>
       </div>
       <blockquote className="read-me">{READ_ME[tone]}</blockquote>
-      <p className="muted small">조용한 방에서, 실제 나레이션과 같은 말투로. 마이크에서 한 뼘 거리. 20~30초가 가장 좋습니다.</p>
+      <p className="muted small">조용한 곳에서 자연스럽게 읽은 5~15초 샘플을 권장합니다. 대본은 샘플에서 실제로 읽은 말과 같아야 해요.</p>
 
       <div className="toolbar">
         {rec.recording ? (

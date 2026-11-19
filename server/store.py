@@ -7,12 +7,15 @@ voices/<이름>.wav + .txt     목소리 샘플 + 그 샘플의 대본
 """
 
 import copy
+import hashlib
 import json
 import re
 import secrets
 import shutil
 import threading
 from datetime import datetime
+from functools import lru_cache
+from pathlib import Path
 
 from . import audio, check, config
 from .textsplit import join_script, split_script
@@ -103,7 +106,8 @@ def create_project(title, script=""):
         }
         if not voice_exists(d["settings"]["voice"]):
             vs = list_voices()
-            d["settings"]["voice"] = vs[0]["name"] if vs else ""
+            neutral = next((v for v in vs if v.get("style") == "기본"), None)
+            d["settings"]["voice"] = (neutral or vs[0])["name"] if vs else ""
         set_script(d, script)
         return save(d)
 
@@ -113,7 +117,26 @@ def delete_project(pid):
         d = _dir(pid)
         if not (d / "project.json").exists():
             raise NotFound(pid)
-        shutil.rmtree(d)
+        trash = config.PROJECTS_DIR / ".trash"
+        trash.mkdir(exist_ok=True)
+        trash_id = new_id("deleted-")
+        shutil.move(str(d), trash / trash_id)
+        return trash_id
+
+
+def restore_project(trash_id):
+    if not _ID_RE.match(trash_id or ""):
+        raise NotFound(trash_id)
+    with LOCK:
+        source = config.PROJECTS_DIR / ".trash" / trash_id
+        if not (source / "project.json").is_file():
+            raise NotFound(trash_id)
+        d = json.loads((source / "project.json").read_text(encoding="utf-8"))
+        target = _dir(d["id"])
+        if target.exists():
+            raise BadRequest("같은 에피소드가 이미 있습니다.")
+        shutil.move(str(source), target)
+        return load(d["id"])
 
 
 def script_of(d):
@@ -176,7 +199,11 @@ def line_voice(d, line):
 def valid_takes(d, line):
     """지금 글자·목소리로 만든 테이크만."""
     v = line_voice(d, line)
-    return [t for t in line["takes"] if t["text"] == line["text"] and t["voice"] == v]
+    signature = voice_signature(v) if voice_exists(v) else None
+    registered = voice_metadata(v).get("registered_at", "") if voice_exists(v) else ""
+    return [t for t in line["takes"] if t["text"] == line["text"] and t["voice"] == v
+            and (t["reference_signature"] == signature if t.get("reference_signature")
+                 else not registered or t.get("created", "") >= registered)]
 
 
 def chosen_take(d, line):
@@ -256,6 +283,33 @@ def voice_paths(name):
     return config.VOICES_DIR / f"{name}.wav", config.VOICES_DIR / f"{name}.txt"
 
 
+def voice_metadata(name):
+    wav, _ = voice_paths(name)
+    try:
+        data = json.loads(wav.with_suffix(".json").read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {}
+    return {k: data[k] for k in ("family", "style", "provider", "registered_at")
+            if isinstance(data, dict) and isinstance(data.get(k), str)}
+
+
+@lru_cache(maxsize=128)
+def _voice_digest(wav_path, txt_path, wav_stat, txt_stat):
+    # Stat keys invalidate this cache whenever the reference or transcript changes.
+    digest = hashlib.sha256(Path(wav_path).read_bytes())
+    if txt_stat:
+        digest.update(Path(txt_path).read_bytes())
+    return digest.hexdigest()
+
+
+def voice_signature(name):
+    wav, txt = voice_paths(name)
+    ws = wav.stat()
+    ts = txt.stat() if txt.exists() else None
+    return _voice_digest(str(wav), str(txt), (ws.st_mtime_ns, ws.st_ctime_ns, ws.st_size),
+                         (ts.st_mtime_ns, ts.st_ctime_ns, ts.st_size) if ts else None)
+
+
 def list_voices():
     config.VOICES_DIR.mkdir(parents=True, exist_ok=True)
     out = []
@@ -270,6 +324,7 @@ def list_voices():
             "text": t.read_text(encoding="utf-8").strip() if t.exists() else "",
             "duration": round(sf.info(str(w)).duration, 2),
             "updated": datetime.fromtimestamp(w.stat().st_mtime).isoformat(timespec="seconds"),
+            **voice_metadata(w.stem),
         })
     return out
 

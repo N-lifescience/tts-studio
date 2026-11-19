@@ -45,3 +45,8 @@
   자막 설정·미리보기, 내보내기 → iCloud Drive/TTS/ep01 카직스 생물학/ (wav 29.7초 = 자막영상 29.7초, -14.4 LUFS).
 - 다크 모드 확인. 테스트 23개 통과.
 - 못 한 것: 브라우저 녹음 버튼(이 환경에 마이크 없음), 아이패드 루마퓨전에서 실제로 불러오기.
+
+## 2026-11-19 깃허브 정리
+- 10-11 작업 올림: 에피소드 삭제 확인 창·되돌리기(projects/.trash), 사이드바 폭 조절, 목소리·말투 두 칸 고르기(voices/<이름>.json 의 family·style), 생성 결과 재현(seed 고정, 테이크에 seed·temperature·model·샘플 지문 기록).
+- 목소리 샘플을 다시 등록하면 그 전에 만든 테이크는 쓰지 않음(샘플 지문 비교).
+- 내보내기 위치 iCloud `AI 공유함/TTS/`(10-31), README 에 「쓰는 모델」 절(Qwen3-TTS·Qwen3-ASR Apache 2.0, faster-whisper MIT).

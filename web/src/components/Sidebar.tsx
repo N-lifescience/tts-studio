@@ -54,7 +54,7 @@ export function Sidebar(props: Props) {
   const working = queue && (queue.current || queue.pending > 0)
 
   return (
-    <aside className="sidebar">
+    <aside className="sidebar" id="studio-sidebar">
       <div className="brand">
         <img src="/favicon.svg" alt="" width={26} height={26} />
         <span>TTS 작업실</span>
@@ -220,11 +220,11 @@ function Row({
   return (
     <li className={`side-row ${active ? 'active' : ''}`}>
       <button className="side-item" onClick={onClick}>
-        <span className="side-title">{children}</span>
+        <span className="side-title" title={typeof children === 'string' ? children : undefined}>{children}</span>
         <span className="side-meta">{meta}</span>
       </button>
-      <button className="side-del" aria-label={deleteLabel} title="삭제" onClick={onDelete}>
-        <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden>
+      <button className="side-del" aria-label={deleteLabel} title={deleteLabel} onClick={onDelete}>
+        <svg viewBox="0 0 16 16" width="16" height="16" aria-hidden>
           <path
             d="M6 2h4M2.5 4h11M4 4l.7 9.2a1 1 0 0 0 1 .8h4.6a1 1 0 0 0 1-.8L12 4M6.5 7v4.5M9.5 7v4.5"
             fill="none"

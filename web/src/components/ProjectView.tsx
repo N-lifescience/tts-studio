@@ -20,7 +20,7 @@ export interface ProjectProps {
 
 type Tab = 'lines' | 'script' | 'settings' | 'export'
 
-export function ProjectView(props: ProjectProps) {
+export function ProjectView(props: ProjectProps & { onDelete: () => void }) {
   const { project, setProject, fail } = props
   const [tab, setTab] = useState<Tab>(project.lines.length ? 'lines' : 'script')
   const [editingTitle, setEditingTitle] = useState(false)
@@ -77,6 +77,9 @@ export function ProjectView(props: ProjectProps) {
             확인 필요 {bad}줄
           </button>
         )}
+        <button className="btn danger project-delete" onClick={props.onDelete}>
+          에피소드 삭제
+        </button>
       </header>
 
       <nav className="tabs" role="tablist">

@@ -17,7 +17,7 @@ def _export_root():
     home = Path.home()
     for icloud in (home / "Library" / "Mobile Documents" / "com~apple~CloudDocs", home / "iCloudDrive"):
         if icloud.exists():
-            return icloud / "TTS"
+            return icloud / "AI 공유함" / "TTS"  # 2026-10-31 아이클라우드 공유 폴더를 'AI 공유함' 하나로 합침
     return home / "Documents" / "TTS 작업실 내보내기"
 
 
@@ -42,6 +42,7 @@ FONT_PATH, FONT_INDEX_BOLD = next(((f, i) for f, i in _FONTS if Path(f).exists()
 DEFAULT_SETTINGS = {
     "voice": "myvoice",
     "temperature": 0.7,
+    "seed": None,
     "sentence_gap": 0.3,
     "para_gap": 0.8,
     "lufs": -14.0,

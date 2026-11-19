@@ -3,6 +3,7 @@ import { api, urls, type LinePatch } from '../api'
 import { player, usePlayer } from '../player'
 import type { DiffOp, Line } from '../types'
 import type { ProjectProps } from './ProjectView'
+import { VoicePicker } from './VoicePicker'
 
 const SPEEDS = [0.8, 0.85, 0.9, 0.95, 1, 1.05, 1.1, 1.15, 1.2]
 const GAPS = [0, 0.2, 0.3, 0.5, 0.8, 1, 1.5, 2, 3]
@@ -102,6 +103,7 @@ export function LinesTab(props: Props) {
         )}
       </div>
 
+      <p className="muted quality-note">자동 검사는 대본과 끝음 끊김을 확인합니다. 갈라짐과 음색은 직접 들어서 확인하세요.</p>
       <ol className="lines">
         {project.lines.map((l, i) => (
           <Fragment key={l.id}>
@@ -216,24 +218,9 @@ function LineRow({
       {line.status === 'error' && <div className="heard bad-text">{line.error}</div>}
 
       <div className="line-ctrl">
-        <label>
-          목소리
-          <select
-            value={line.voice_used}
-            disabled={busy}
-            onChange={(e) =>
-              patch(e.target.value === def.voice ? { reset_voice: true } : { voice: e.target.value }, true)
-            }
-          >
-            {voices.map((v) => (
-              <option key={v.name} value={v.name}>
-                {v.name === def.voice ? `${v.name} (기본)` : v.name}
-              </option>
-            ))}
-            {!voices.some((v) => v.name === line.voice_used) && <option value={line.voice_used}>{line.voice_used} (없음)</option>}
-          </select>
-        </label>
-        <label>
+        <VoicePicker voices={voices} value={line.voice_used} disabled={busy}
+          onChange={(name) => patch(name === def.voice ? { reset_voice: true } : { voice: name }, true)} />
+        <label title="속도는 재생과 내보내기에 적용됩니다.">
           속도
           <select value={line.speed} onChange={(e) => patch({ speed: Number(e.target.value) })}>
             {(SPEEDS.includes(line.speed) ? SPEEDS : [...SPEEDS, line.speed].sort((a, b) => a - b)).map((s) => (
@@ -265,7 +252,7 @@ function LineRow({
               <button
                 key={t.id}
                 className={`take ${t.id === line.chosen ? 'on' : ''} ${t.ok === false ? 'bad' : t.ok ? 'ok' : ''} ${ps.key === `take:${t.id}` ? 'playing' : ''}`}
-                title={`${i + 1}번 테이크 · ${t.duration}초${t.heard ? ` · 들린 말: ${t.heard}` : ''}${t.tail_ok === false ? ' · 끝이 끊김' : ''}\n누르면 듣고 이걸로 씁니다`}
+                title={`${i + 1}번 테이크 · ${t.duration}초${t.seed !== undefined ? ` · 생성값: ${t.seed} / ${t.temperature}` : ''}${t.heard ? ` · 들린 말: ${t.heard}` : ''}${t.tail_ok === false ? ' · 끝이 끊김' : ''}\n누르면 듣고 이걸로 씁니다`}
                 onClick={() => {
                   play(t.id)
                   if (t.id !== line.chosen) patch({ chosen: t.id })
@@ -276,6 +263,7 @@ function LineRow({
             ))}
           </div>
         )}
+        {chosen?.seed !== undefined && <span className="generation-values" title={chosen.model}>생성값 {chosen.seed} · {chosen.temperature?.toFixed(2)}</span>}
         <span className="spacer" />
         <button className="btn sm" disabled={busy} onClick={() => api.generateLine(project.id, line.id, true).catch(fail)}>
           ↻ 다시 뽑기

@@ -49,7 +49,8 @@ export const api = {
   createProject: (title: string, script = '') => req<Project>('POST', '/api/projects', { title, script }),
   project: (id: string) => req<Project>('GET', P(id)),
   patchProject: (id: string, body: { title?: string; settings?: Partial<Settings> }) => req<Project>('PATCH', P(id), body),
-  deleteProject: (id: string) => req<{ ok: boolean }>('DELETE', P(id)),
+  deleteProject: (id: string) => req<{ ok: boolean; trash_id: string }>('DELETE', P(id)),
+  restoreProject: (trashId: string) => req<Project>('POST', `/api/trash/${encodeURIComponent(trashId)}/restore`),
   putScript: (id: string, script: string) => req<Project>('PUT', `${P(id)}/script`, { script }),
   patchLine: (id: string, lid: string, body: LinePatch) => req<Line>('PATCH', `${P(id)}/lines/${lid}`, body),
   generateLine: (id: string, lid: string, manual = true) =>

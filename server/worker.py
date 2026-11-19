@@ -116,11 +116,15 @@ def _run_line(pid, lid, manual):
     vwav, vtxt = store.voice_paths(voice)
     ref_text = vtxt.read_text(encoding="utf-8").strip() if vtxt.exists() else ""
     temperature = float(d["settings"]["temperature"])
+    fixed_seed = d["settings"].get("seed")
+    reference_signature = store.voice_signature(voice)
+    model = engine.describe()["tts_model"]
 
     new = []
     for attempt in range(1, engine.max_attempts() + 1):
         _set_status(pid, lid, "generating")
-        a = engine.generate(text, vwav, ref_text, temperature, secrets.randbits(31))
+        seed = ((fixed_seed + attempt - 1) % 2147483648) if fixed_seed is not None else secrets.randbits(31)
+        a = engine.generate(text, vwav, ref_text, temperature, seed)
         tid = store.new_id("t")
         rel = f"takes/{lid}_{tid}.wav"
         trimmed = audio.trim_silence(a)
@@ -128,6 +132,8 @@ def _run_line(pid, lid, manual):
         tail_ms = audio.ending_decay_ms(a)
         take = {"id": tid, "file": rel, "text": text, "voice": voice, "created": store.now(),
                 "duration": round(len(trimmed) / config.SR, 2), "attempt": attempt,
+                "seed": seed, "temperature": temperature, "model": model,
+                "reference_signature": reference_signature,
                 "heard": None, "distance": None, "ok": None, "diff": None,
                 "tail_ms": tail_ms, "tail_ok": tail_ms >= audio.ENDING_MIN_MS}
 

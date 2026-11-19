@@ -1,12 +1,17 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState, type CSSProperties } from 'react'
 import { api } from './api'
+import { DeleteProjectDialog } from './components/DeleteProjectDialog'
 import { InboxView } from './components/InboxView'
 import { ProjectView } from './components/ProjectView'
 import { Sidebar } from './components/Sidebar'
+import { SidebarResize } from './components/SidebarResize'
 import { VoicesView } from './components/VoicesView'
 import type { ExportState, Line, Project, ProjectSummary, QueueState, ServerEvent, Voice } from './types'
+import { useSidebarWidth } from './useSidebarWidth'
 
 type View = { kind: 'project'; id: string } | { kind: 'voices'; focus?: string } | { kind: 'inbox' } | { kind: 'empty' }
+type DeleteTarget = Pick<ProjectSummary, 'id' | 'title'>
+type ToastAction = { label: string; run: () => void }
 
 const LAST = 'tts-studio:last'
 
@@ -27,13 +32,15 @@ function writeLast(id: string) {
 }
 
 export default function App() {
+  const sidebar = useSidebarWidth()
   const [projects, setProjects] = useState<ProjectSummary[]>([])
   const [voices, setVoices] = useState<Voice[]>([])
   const [view, setView] = useState<View>({ kind: 'empty' })
   const [project, setProject] = useState<Project | null>(null)
   const [queue, setQueue] = useState<QueueState | null>(null)
   const [exports, setExports] = useState<Record<string, ExportState>>({})
-  const [toast, setToast] = useState<{ msg: string; bad?: boolean } | null>(null)
+  const [toast, setToast] = useState<{ msg: string; bad?: boolean; action?: ToastAction } | null>(null)
+  const [pendingDelete, setPendingDelete] = useState<DeleteTarget | null>(null)
   const [online, setOnline] = useState(true)
   const [inboxOn, setInboxOn] = useState(false)
   const viewRef = useRef(view)
@@ -41,9 +48,9 @@ export default function App() {
     viewRef.current = view
   }, [view])
 
-  const notify = useCallback((msg: string, bad = false) => {
-    setToast({ msg, bad })
-    window.setTimeout(() => setToast((t) => (t?.msg === msg ? null : t)), bad ? 6000 : 3000)
+  const notify = useCallback((msg: string, bad = false, action?: ToastAction) => {
+    setToast({ msg, bad, action })
+    window.setTimeout(() => setToast((t) => (t?.msg === msg ? null : t)), action ? 15000 : bad ? 6000 : 3000)
   }, [])
 
   const fail = useCallback((e: unknown) => notify(e instanceof Error ? e.message : String(e), true), [notify])
@@ -133,13 +140,21 @@ export default function App() {
     }
   }
 
-  const deleteProject = async (p: ProjectSummary) => {
-    if (!window.confirm(`"${p.title}" 에피소드를 지울까요?\n만든 음성도 모두 지워집니다. (iCloud 로 내보낸 파일은 남습니다)`)) return
+  const deleteProject = async (p: DeleteTarget) => {
     try {
-      await api.deleteProject(p.id)
+      const removed = await api.deleteProject(p.id)
       const ps = await api.projects()
       setProjects(ps)
-      notify(`에피소드 "${p.title}" 삭제됨`)
+      notify(`에피소드 "${p.title}" 삭제됨`, false, {
+        label: '되돌리기',
+        run: () => {
+          api.restoreProject(removed.trash_id).then((restored) => {
+            loadProjects()
+            openProject(restored.id)
+            notify('에피소드를 복원했습니다.')
+          }).catch(fail)
+        },
+      })
       if (view.kind === 'project' && view.id === p.id) {
         setProject(null)
         if (ps[0]) openProject(ps[0].id)
@@ -170,7 +185,7 @@ export default function App() {
   const busyProject = queue?.current?.[0]
 
   return (
-    <div className="app">
+    <div className="app" style={{ '--sidebar-width': `${sidebar.width}px` } as CSSProperties}>
       <Sidebar
         projects={projects}
         voices={voices}
@@ -180,12 +195,13 @@ export default function App() {
         online={online}
         onOpen={openProject}
         onCreate={createProject}
-        onDeleteProject={deleteProject}
+        onDeleteProject={setPendingDelete}
         onOpenVoice={openVoice}
         onDeleteVoice={deleteVoice}
         inboxOn={inboxOn}
         onOpenInbox={() => setView({ kind: 'inbox' })}
       />
+      <SidebarResize width={sidebar.width} maxWidth={sidebar.maxWidth} onChange={sidebar.setWidth} />
       <main className="main">
         {view.kind === 'project' && project && project.id === view.id && (
           <ProjectView
@@ -202,6 +218,7 @@ export default function App() {
             onGoVoices={() => openVoice()}
             notify={notify}
             fail={fail}
+            onDelete={() => setPendingDelete(project)}
           />
         )}
         {view.kind === 'voices' && (
@@ -229,9 +246,25 @@ export default function App() {
           </div>
         )}
       </main>
+      {pendingDelete && (
+        <DeleteProjectDialog
+          title={pendingDelete.title}
+          onCancel={() => setPendingDelete(null)}
+          onDelete={() => {
+            setPendingDelete(null)
+            deleteProject(pendingDelete)
+          }}
+        />
+      )}
       {toast && (
         <div className={`toast ${toast.bad ? 'bad' : ''}`} role="status">
-          {toast.msg}
+          <span>{toast.msg}</span>
+          {toast.action && (
+            <button className="btn" onClick={() => {
+              toast.action?.run()
+              setToast(null)
+            }}>{toast.action.label}</button>
+          )}
         </div>
       )}
     </div>

@@ -8,6 +8,10 @@ export interface Take {
   created: string
   duration: number
   attempt: number
+  seed?: number
+  temperature?: number
+  model?: string
+  reference_signature?: string
   heard: string | null
   distance: number | null
   ok: boolean | null
@@ -52,6 +56,7 @@ export interface SubtitleSettings {
 export interface Settings {
   voice: string
   temperature: number
+  seed: number | null
   sentence_gap: number
   para_gap: number
   lufs: number
@@ -80,6 +85,10 @@ export interface Voice {
   text: string
   duration: number
   updated: string
+  family?: string
+  style?: string
+  provider?: string
+  registered_at?: string
 }
 
 export interface QueueState {
